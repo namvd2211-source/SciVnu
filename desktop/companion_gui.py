@@ -13,7 +13,7 @@ from collections import deque
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Deque, Dict, Optional
+from typing import Any, Callable, Deque, Dict, Optional
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -23,7 +23,9 @@ from config.release_config import current_app_name, current_version, is_newer_ve
 
 RELEASE_CONFIG = load_release_config()
 APP_TITLE = current_app_name()
-WEB_APP_URL = "https://sci-vnucea.web.app"
+HOSTED_WEB_APP_URL = "https://sci-vnucea.web.app"
+LOCAL_WEB_APP_URL = "http://127.0.0.1:8787/"
+LOCAL_LIVE_URL = "http://127.0.0.1:8787/api/live"
 LOCAL_HEALTH_URL = "http://127.0.0.1:8787/api/health"
 BACKEND_READY_TIMEOUT = 15.0
 STATE_POLL_INTERVAL = 1.0
@@ -184,6 +186,8 @@ class CompanionController:
         self.health_thread: Optional[threading.Thread] = None
         self.oauth_thread: Optional[threading.Thread] = None
         self.update_thread: Optional[threading.Thread] = None
+        self.close_callback: Optional[Callable[[], None]] = None
+        self.closing_for_update = False
         self.stop_event = threading.Event()
         self.state_lock = threading.Lock()
         self.started_at = 0.0
@@ -232,7 +236,8 @@ class CompanionController:
             "update_asset_name": str(self.release_config.get("release_asset_name") or "ResearchCompanionSetup.exe"),
         }
         self._append_log("Companion ready.")
-        self._append_log(f"Web app: {WEB_APP_URL}")
+        self._append_log(f"Local web app: {LOCAL_WEB_APP_URL}")
+        self._append_log(f"Hosted web app: {HOSTED_WEB_APP_URL}")
         self._append_log(
             f"{self.state['app_name']} version {self.state['app_version']} ({self.state['release_channel']})"
         )
@@ -1241,7 +1246,7 @@ class CompanionController:
         self._set_running_ui(
             running=True,
             status="Starting...",
-            detail="Waiting for http://127.0.0.1:8787/api/health",
+            detail="Waiting for http://127.0.0.1:8787/api/live",
         )
         return {"ok": True}
 
@@ -1289,7 +1294,7 @@ class CompanionController:
         return {"ok": True}
 
     def open_web_app(self) -> Dict[str, Any]:
-        _open_in_browser(WEB_APP_URL)
+        _open_in_browser(LOCAL_WEB_APP_URL)
         return {"ok": True}
 
     def check_for_updates(self) -> Dict[str, Any]:
@@ -1321,11 +1326,18 @@ class CompanionController:
         download_name = f"ResearchCompanionSetup-{safe_version}{suffix}"
         target_path = self._update_downloads_dir() / download_name
 
-        self._update_state_fields(
-            update_status="downloading",
-            update_message=f"Downloading installer {download_name}...",
-        )
         try:
+            self._update_state_fields(
+                update_status="stopping_proxy",
+                update_message="Stopping local proxy before update...",
+            )
+            self._append_log("Stopping local proxy before update...")
+            self.stop_backend()
+
+            self._update_state_fields(
+                update_status="downloading",
+                update_message=f"Downloading installer {download_name}...",
+            )
             session = _local_requests_session()
             with session.get(
                 download_url,
@@ -1340,11 +1352,22 @@ class CompanionController:
                         if chunk:
                             handle.write(chunk)
             self._append_log(f"Downloaded update installer to {target_path}")
-            os.startfile(str(target_path))  # type: ignore[attr-defined]
+
             self._update_state_fields(
-                update_status="installer_ready",
-                update_message="Installer downloaded and launched. Close Research Companion if the installer asks.",
+                update_status="launching_installer",
+                update_message="Launching update installer...",
             )
+            creationflags = 0
+            if os.name == "nt":
+                creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
+            subprocess.Popen([str(target_path)], close_fds=True, creationflags=creationflags)
+            self._append_log(f"Launched update installer: {target_path}")
+
+            self._update_state_fields(
+                update_status="closing_for_update",
+                update_message="Installer launched. Research Companion will close so the update can continue.",
+            )
+            self._schedule_close_for_update()
             return {"ok": True, "path": str(target_path)}
         except Exception as exc:
             self._update_state_fields(
@@ -1353,6 +1376,25 @@ class CompanionController:
             )
             self._append_log(f"Update install failed: {exc}")
             return {"ok": False, "message": str(exc)}
+
+    def _schedule_close_for_update(self) -> None:
+        self.closing_for_update = True
+
+        def close_later() -> None:
+            time.sleep(0.8)
+            try:
+                self.shutdown()
+            finally:
+                callback = self.close_callback
+                if callback:
+                    try:
+                        callback()
+                        return
+                    except Exception:
+                        pass
+                os._exit(0)
+
+        threading.Thread(target=close_later, daemon=True).start()
 
     def get_state(self) -> Dict[str, Any]:
         snapshot = self._snapshot()
@@ -1433,24 +1475,32 @@ class CompanionController:
                 if should_check:
                     self._start_update_check(manual=False)
             try:
-                response = _requests_get(LOCAL_HEALTH_URL, timeout=1.2)
+                response = _requests_get(LOCAL_LIVE_URL, timeout=1.2)
                 payload = response.json()
-                if response.ok and payload.get("ok"):
-                    self.last_health_payload = payload
-                    source = str(payload.get("google_oauth_client_source", "unknown"))
-                    runtime = "user_oauth"
-                    self._update_state(
-                        oauth_source=source,
-                        runtime_identity=runtime,
-                    )
-                    self._set_running_ui(
-                        running=True,
-                        status="Running",
-                        detail=f"127.0.0.1:8787 | {runtime} | oauth={source}",
-                    )
-                    self._set_runtime_phase("ready", stage="healthy")
-                else:
-                    raise RuntimeError("Health endpoint returned non-ok payload.")
+                if not (response.ok and payload.get("ok") and payload.get("service") == "research-companion"):
+                    raise RuntimeError("Liveness endpoint returned non-ok payload.")
+
+                health_payload: Dict[str, Any] = {}
+                try:
+                    health_response = _requests_get(LOCAL_HEALTH_URL, timeout=1.2)
+                    if health_response.ok:
+                        health_payload = health_response.json()
+                except Exception:
+                    health_payload = {}
+                self.last_health_payload = health_payload or payload
+                google_oauth_source = str(health_payload.get("google_oauth_client_source", "unknown"))
+                auth_phase = str(self.state.get("auth_phase") or "idle")
+                runtime = "gemini_cli_oauth" if auth_phase in {"ready", "runtime_only"} else "user_oauth"
+                self._update_state(
+                    oauth_source=auth_phase,
+                    runtime_identity=runtime,
+                )
+                self._set_running_ui(
+                    running=True,
+                    status="Running",
+                    detail=f"Local Web UI: {LOCAL_WEB_APP_URL} | auth={auth_phase} | google_oauth={google_oauth_source}",
+                )
+                self._set_runtime_phase("ready", stage="api_live")
             except Exception:
                 with self.state_lock:
                     process = self.process
@@ -1461,14 +1511,14 @@ class CompanionController:
                         status="Starting...",
                         detail="Process is up, waiting for local API...",
                     )
-                    self._set_runtime_phase("starting", stage="waiting_health")
+                    self._set_runtime_phase("starting", stage="waiting_live")
                 elif running:
                     self._set_running_ui(
                         running=True,
-                        status="Running (health unavailable)",
-                        detail="Process is alive but health probe failed.",
+                        status="Running (API unavailable)",
+                        detail="Process is alive but liveness probe failed.",
                     )
-                    self._set_runtime_phase("degraded", stage="health_unavailable")
+                    self._set_runtime_phase("degraded", stage="live_unavailable")
                 else:
                     self._set_running_ui(
                         running=False,
@@ -1572,11 +1622,13 @@ def run_backend_mode() -> None:
             _backend_log(f"Loaded backend app from {backend_source}")
             print(f"Backend source: {backend_source}", flush=True)
 
-        _backend_log("Starting uvicorn on 0.0.0.0:8787.")
+        host = os.getenv("HOST", "127.0.0.1")
+        port = int(os.getenv("PORT", "8787"))
+        _backend_log(f"Starting uvicorn on {host}:{port}.")
         uvicorn.run(
             backend_api.app,
-            host="0.0.0.0",
-            port=int(os.getenv("PORT", "8787")),
+            host=host,
+            port=port,
             reload=False,
             access_log=False,
             log_config=None,
@@ -1634,8 +1686,13 @@ def run_gui_mode() -> None:
         text_select=True,
     )
 
+    def close_window_for_update() -> None:
+        os._exit(0)
+
+    controller.close_callback = close_window_for_update
+
     def on_closing() -> bool:
-        if controller.is_backend_running():
+        if not controller.closing_for_update and controller.is_backend_running():
             if not _confirm_exit_dialog():
                 return False
         controller.shutdown()

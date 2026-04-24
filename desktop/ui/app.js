@@ -239,15 +239,19 @@ function renderUpdate(snapshot) {
   if (updateStatus === "checking") badgeText = "Checking";
   else if (updateStatus === "available") badgeText = "Update";
   else if (updateStatus === "up_to_date") badgeText = "Latest";
+  else if (updateStatus === "stopping_proxy") badgeText = "Stopping";
   else if (updateStatus === "downloading") badgeText = "Loading";
+  else if (updateStatus === "launching_installer") badgeText = "Launching";
+  else if (updateStatus === "closing_for_update") badgeText = "Closing";
   else if (updateStatus === "installer_ready") badgeText = "Ready";
   else if (updateStatus === "error") badgeText = "Error";
   else if (updateStatus === "not_configured") badgeText = "Setup";
   elements.updateBadge.textContent = badgeText;
   elements.updateBadge.className = `update-badge ${updateStatus}`;
 
-  elements.checkUpdateButton.disabled = updateStatus === "checking";
-  elements.installUpdateButton.disabled = !available || !snapshot.update_download_url || updateStatus === "downloading";
+  const updateBusy = ["checking", "stopping_proxy", "downloading", "launching_installer", "closing_for_update", "installer_ready"].includes(updateStatus);
+  elements.checkUpdateButton.disabled = updateStatus === "checking" || updateBusy;
+  elements.installUpdateButton.disabled = !available || !snapshot.update_download_url || updateBusy;
   elements.releaseNotesButton.disabled = false;
 }
 
@@ -339,9 +343,10 @@ function bind() {
     await refresh();
   });
   elements.installUpdateButton.addEventListener("click", async () => {
+    if (!window.confirm("Stop the local proxy, launch the installer, and close Research Companion?")) return;
     const result = await callApi("install_update", elements.installUpdateButton);
     if (result?.ok) {
-      setToast("Installer launched.");
+      setToast("Installer launched. Research Companion will close.");
     }
     await refresh();
   });

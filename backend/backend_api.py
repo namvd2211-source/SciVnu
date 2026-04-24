@@ -114,7 +114,28 @@ else:
         write_json_file,
     )
 
-WEB_DIR = str(REPO_ROOT / "web")
+def _resolve_web_dir() -> str:
+    configured = os.getenv("RESEARCH_COMPANION_WEB_DIR") or os.getenv("WEB_DIR")
+    candidates: List[Path] = []
+    if configured:
+        candidates.append(Path(configured))
+    candidates.append(REPO_ROOT / "web")
+    meipass = getattr(sys, "_MEIPASS", "")
+    if meipass:
+        candidates.append(Path(meipass) / "web")
+    executable_dir = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path.cwd()
+    candidates.extend([
+        executable_dir / "web",
+        executable_dir.parent / "web",
+        Path.cwd() / "web",
+    ])
+    for candidate in candidates:
+        if (candidate / "index.html").is_file():
+            return str(candidate)
+    return str(candidates[0] if candidates else REPO_ROOT / "web")
+
+
+WEB_DIR = _resolve_web_dir()
 
 
 class ChatMessage(BaseModel):
@@ -3117,6 +3138,16 @@ def _run_job(job_id: str, payload: WorkflowRequest) -> None:
         _clear_job_stop(job_id)
 
 
+@app.get("/api/live")
+def live() -> Dict[str, Any]:
+    return {
+        "ok": True,
+        "service": "research-companion",
+        "version": current_version(),
+        "local_companion_mode": _is_local_companion_runtime(),
+    }
+
+
 @app.get("/api/health")
 def health() -> Dict[str, Any]:
     is_local_companion = _is_local_companion_runtime()
@@ -3220,7 +3251,10 @@ def resource_unpaywall(payload: ResourceUnpaywallRequest) -> Dict[str, Any]:
 
 @app.get("/")
 def index() -> FileResponse:
-    return FileResponse(os.path.join(WEB_DIR, "index.html"))
+    index_path = os.path.join(WEB_DIR, "index.html")
+    if not os.path.isfile(index_path):
+        raise HTTPException(status_code=503, detail=f"Web UI assets were not found at {WEB_DIR}.")
+    return FileResponse(index_path)
 
 
 @app.get("/api/oauth/google/start")
@@ -3709,7 +3743,7 @@ def delete_job(job_id: str) -> Dict[str, Any]:
     return {"deleted": True}
 
 
-if os.path.isdir(WEB_DIR):
+if os.path.isfile(os.path.join(WEB_DIR, "index.html")):
     app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
 
 

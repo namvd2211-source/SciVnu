@@ -229,6 +229,35 @@ def _packaged_backend_source_candidates(root: Path, filename: str) -> list[Path]
     ]
 
 
+def _resolve_web_dir(root: Path) -> str:
+    configured = os.getenv("RESEARCH_COMPANION_WEB_DIR") or os.getenv("WEB_DIR")
+    candidates: list[Path] = []
+    if configured:
+        candidates.append(Path(configured))
+    bundle = bundle_root()
+    candidates.extend([
+        root / "web",
+        bundle / "web",
+        bundle.parent / "web",
+        Path.cwd() / "web",
+    ])
+    for candidate in candidates:
+        if (candidate / "index.html").is_file():
+            return str(candidate.resolve())
+    return str((root / "web").resolve())
+
+
+def _copy_required(source_path: Path, target_path: Path, force_refresh: bool) -> bool:
+    if force_refresh or not target_path.exists():
+        return True
+    try:
+        source_stat = source_path.stat()
+        target_stat = target_path.stat()
+        return source_stat.st_size != target_stat.st_size or int(source_stat.st_mtime) != int(target_stat.st_mtime)
+    except Exception:
+        return True
+
+
 def _materialize_editable_backend(root: Path, data_dir: Path) -> str:
     target_dir = editable_backend_dir(data_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -242,7 +271,7 @@ def _materialize_editable_backend(root: Path, data_dir: Path) -> str:
         if source_path is None:
             continue
         target_path = target_dir / filename
-        if target_path.exists() and not force_refresh:
+        if not _copy_required(source_path, target_path, force_refresh):
             continue
         try:
             shutil.copy2(source_path, target_path)
@@ -408,6 +437,7 @@ def configure_local_companion_env(root: Path | None = None) -> Dict[str, str]:
     os.environ["RESEARCH_COMPANION_CLI_PROXY_PORT"] = proxy_runtime["port"]
     os.environ["RESEARCH_COMPANION_CLI_PROXY_OWNED"] = "true"
     os.environ["RESEARCH_COMPANION_EDITABLE_BACKEND_DIR"] = proxy_runtime["editable_backend_dir"]
+    os.environ["RESEARCH_COMPANION_WEB_DIR"] = _resolve_web_dir(root)
     if not os.getenv("GOOGLE_CLOUD_PROJECT"):
         os.environ["GOOGLE_CLOUD_PROJECT"] = ""
     os.environ.setdefault("GOOGLE_CLOUD_LOCATION", DEFAULT_LOCATION)
@@ -446,4 +476,5 @@ def configure_local_companion_env(root: Path | None = None) -> Dict[str, str]:
         "CLI_PROXY_CONFIG_OWNER": proxy_runtime["config_owner"],
         "CLI_PROXY_DATA_DIR": str(companion_data_dir(root)),
         "EDITABLE_BACKEND_DIR": proxy_runtime["editable_backend_dir"],
+        "WEB_DIR": os.getenv("RESEARCH_COMPANION_WEB_DIR", ""),
     }

@@ -6,6 +6,18 @@ The format is based on Keep a Changelog, and versions are intended to map to Git
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-04-24
+### Added
+- Local companion web UI served from `http://127.0.0.1:8787/` with same-origin API access.
+- Lightweight `/api/live` liveness endpoint for reliable hosted webapp companion detection.
+- Update Now flow that stops the local proxy, downloads the installer, launches it, and closes the companion.
+
+### Changed
+- Desktop companion now opens the local web UI by default and binds the backend to loopback.
+- Hosted webapp detection now probes liveness separately from auth/proxy health.
+- Packaged companion now includes the production web assets.
+- Editable backend runtime refreshes backend files when packaged/source files change.
+
 ## [1.0.1] - 2026-04-24
 ### Added
 - Centralized release metadata in `release_config.json`.

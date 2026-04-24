@@ -1281,7 +1281,7 @@ async function opaqueReachabilityProbe(origin) {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 1200);
   try {
-    await fetch(`${origin}/api/health?opaque_probe=1`, {
+    await fetch(`${origin}/api/live?opaque_probe=1`, {
       method: "GET",
       mode: "no-cors",
       cache: "no-store",
@@ -1301,7 +1301,7 @@ async function probeLocalOrigin(origin) {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 1800);
   try {
-    const response = await fetch(`${origin}/api/health`, {
+    const response = await fetch(`${origin}/api/live`, {
       method: "GET",
       mode: "cors",
       cache: "no-store",
@@ -1319,7 +1319,7 @@ async function probeLocalOrigin(origin) {
         origin,
         stage: "parse",
         error_kind: "invalid_json",
-        error: "Health endpoint returned non-JSON content.",
+        error: "Liveness endpoint returned non-JSON content.",
         detail: truncateInlineText(text || "Empty response body."),
         duration_ms: (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now()) - startedAt,
       };
@@ -1331,18 +1331,18 @@ async function probeLocalOrigin(origin) {
         stage: "http",
         status: response.status,
         error_kind: "http_error",
-        error: `Health check returned HTTP ${response.status}.`,
+        error: `Liveness check returned HTTP ${response.status}.`,
         detail: truncateInlineText(text || JSON.stringify(payload)),
         duration_ms: (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now()) - startedAt,
       };
     }
-    if (!payload.ok) {
+    if (!payload.ok || payload.service !== "research-companion" || payload.local_companion_mode === false) {
       return {
         ok: false,
         origin,
         stage: "payload",
         error_kind: "payload_invalid",
-        error: "Health JSON did not contain ok=true.",
+        error: "Liveness JSON did not identify a local Research Companion.",
         detail: truncateInlineText(JSON.stringify(payload)),
         duration_ms: (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now()) - startedAt,
       };
@@ -1351,7 +1351,7 @@ async function probeLocalOrigin(origin) {
       ok: true,
       origin,
       payload,
-      stage: "health",
+      stage: "live",
       duration_ms: (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now()) - startedAt,
     };
   } catch (error) {
@@ -1378,6 +1378,18 @@ async function probeLocalOrigin(origin) {
   }
 }
 
+async function refreshLocalCompanionHealth() {
+  if (!state.usingLocalCompanion) return;
+  try {
+    const payload = await fetchJson(apiUrl("/health"));
+    state.llmAuthMode = String((payload && payload.llm_auth_mode) || "local_companion_required");
+    renderLlmSourceBadge();
+  } catch (_error) {
+    state.llmAuthMode = "local_companion_required";
+    renderLlmSourceBadge();
+  }
+}
+
 async function detectLocalCompanion() {
   const attempts = [];
   for (const origin of LOCAL_COMPANION_ORIGINS) {
@@ -1391,7 +1403,6 @@ async function detectLocalCompanion() {
       if (isFreshConnection || !state.localCompanionConnectedAt) {
         state.localCompanionConnectedAt = Date.now();
       }
-      state.llmAuthMode = String((result.payload && result.payload.llm_auth_mode) || "local_companion_required");
       state.localProbeDebug = {
         status: "connected",
         origin,
@@ -1418,7 +1429,7 @@ async function detectLocalCompanion() {
     checkedAt: new Date().toISOString(),
     attempts,
     note:
-      "The hosted app could not complete a readable health probe against the local companion. Check the per-origin result below.",
+      "The hosted app could not complete a readable liveness probe against the local companion. Check the per-origin result below.",
   };
   renderLocalProbeDebug();
   renderLlmSourceBadge();
@@ -1432,6 +1443,9 @@ async function syncRuntimeMode(options = {}) {
   const previousLocal = state.usingLocalCompanion;
 
   await detectLocalCompanion();
+  if (state.usingLocalCompanion) {
+    await refreshLocalCompanionHealth();
+  }
 
   const runtimeChanged =
     previousApiBase !== state.apiBase || previousAuthMode !== state.llmAuthMode || previousLocal !== state.usingLocalCompanion;

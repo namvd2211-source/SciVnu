@@ -1,14 +1,14 @@
-{
-  "app_name": "Research Companion",
-  "version": "1.0.1",
-  "release_channel": "stable",
-  "release_tag_prefix": "v",
-  "github_repo": "namvd2211-source/SciVnu",
-  "release_asset_name": "ResearchCompanionSetup.exe",
-  "release_notes_file": "CHANGELOG.md",
-  "auto_update": {
-    "enabled": true,
-    "check_on_startup": true,
-    "check_interval_hours": 6
-  }
+﻿{
+    "app_name":  "Research Companion",
+    "version":  "1.0.2",
+    "release_channel":  "stable",
+    "release_tag_prefix":  "v",
+    "github_repo":  "namvd2211-source/SciVnu",
+    "release_asset_name":  "ResearchCompanionSetup.exe",
+    "release_notes_file":  "CHANGELOG.md",
+    "auto_update":  {
+                        "enabled":  true,
+                        "check_on_startup":  true,
+                        "check_interval_hours":  6
+                    }
 }

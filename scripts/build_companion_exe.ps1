@@ -142,6 +142,7 @@ $pyInstallerArgs = @(
   "--hidden-import", "uvicorn",
   "--add-binary", "packaging\bin\cli-proxy-api.exe;bin",
   "--add-data", "desktop\ui;companion_ui",
+  "--add-data", "web;web",
   "--add-data", "backend\backend_api.py;backend_runtime",
   "--add-data", "backend\backend_core.py;backend_runtime",
   "--add-data", "config\release_config.json;config",
