@@ -1,0 +1,17 @@
+__pycache__
+.git
+.vscode
+.claude
+.auth
+*.pyc
+*.pyo
+*.pyd
+*.log
+.env
+client_secret_*.json
+firebase-debug.log
+public/
+app.py
+bin/
+dist/
+build/

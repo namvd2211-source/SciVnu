@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI-Agentic Research Assistant</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">VNU-CEA Research Workflow</p>
+          <h1>AI-Agentic Research Assistant</h1>
+        </div>
+      </header>
+
+      <section class="panel controls-panel">
+        <div class="quota-overview">
+          <div class="quota-summary">
+            <span id="llm-source-badge" class="llm-source-badge">LLM: Waiting for Local Companion</span>
+            <span id="quota-account" class="quota-account">Start ResearchCompanion.exe to load account quota.</span>
+            <span id="quota-tier" class="quota-pill" hidden></span>
+            <span id="quota-credits" class="quota-pill" hidden></span>
+          </div>
+          <div id="quota-bars" class="quota-bars empty-state">Quota bars will appear here.</div>
+          <div id="companion-debug" class="companion-debug" hidden>
+            <div class="companion-debug-head">
+              <strong id="companion-debug-title">Companion detection debug</strong>
+              <button id="retry-companion-detect" type="button" class="ghost-button debug-retry">Retry detect</button>
+            </div>
+            <div id="companion-debug-body" class="companion-debug-body"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="main-grid chat-main-grid">
+        <div class="panel status-panel">
+          <div class="status-head">
+            <div>
+              <p class="section-kicker">Execution</p>
+              <h2>Workflow Status</h2>
+            </div>
+          </div>
+          <div class="status-layout">
+            <div class="log-panel">
+              <div class="log-header">
+                <h3>Execution Log</h3>
+                <div class="log-actions">
+                  <button id="copy-log" type="button" class="ghost-button">Copy log</button>
+                  <button id="clear-job" type="button" class="ghost-button">Clear</button>
+                </div>
+              </div>
+              <pre id="execution-log" class="execution-log">Waiting for a run...</pre>
+            </div>
+            <div id="status-cards" class="status-cards"></div>
+          </div>
+        </div>
+
+        <div class="panel chat-panel">
+          <div class="chat-head">
+            <div>
+              <p class="section-kicker">Chat</p>
+              <h2>Workflow Chat</h2>
+            </div>
+            <div class="chat-head-actions">
+              <span id="job-badge" class="job-badge">Idle</span>
+              <button id="drawer-toggle" type="button" class="ghost-button drawer-toggle" aria-expanded="false">
+                Results
+              </button>
+            </div>
+          </div>
+
+          <div id="chat-thread" class="chat-thread">
+            <div class="chat-message assistant">
+              <div class="chat-bubble">
+                Describe what you want to do, then attach papers, images, spreadsheets, or manuscript files. The workflow will adapt the planner, researcher, and writer to your request.
+              </div>
+            </div>
+          </div>
+
+          <div class="composer-shell">
+            <div class="composer-surface">
+              <textarea
+                id="chat-prompt"
+                rows="5"
+                placeholder="Ask anything about writing, revising, comparing, responding to reviewers, or using attached files as research context..."
+              ></textarea>
+
+              <div id="attachment-list" class="attachment-list compact empty-state">No files attached.</div>
+              <div id="filter-summary" class="filter-summary" hidden></div>
+
+              <div class="composer-toolbar">
+                <div class="composer-toolbar-left">
+                  <button id="attach-button" type="button" class="mini-icon-button" aria-label="Add files" title="Add files">+</button>
+                  <input id="attachment-input" type="file" multiple hidden />
+                  <span class="toolbar-pill">Auto</span>
+                  <span class="toolbar-pill toolbar-pill-soft">Workflow</span>
+                </div>
+                <div class="composer-toolbar-right">
+                  <button id="filter-button" type="button" class="mini-text-button" aria-expanded="false">Filters</button>
+                  <button id="stop-job" type="button" class="mini-text-button control-stop" disabled>Stop</button>
+                  <button id="run-button" type="button" class="send-button">Send</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
+    <div id="filters-backdrop" class="filters-backdrop" hidden></div>
+
+    <aside id="filters-sheet" class="filters-sheet" aria-hidden="true">
+      <div class="filters-sheet-head">
+        <div>
+          <h3>Literature Search Filters</h3>
+        </div>
+        <button id="filters-close" type="button" class="ghost-button filters-close" aria-label="Close filters">Close</button>
+      </div>
+
+      <div class="filters-sheet-body">
+        <section class="filter-section">
+          <div class="filter-switch-row">
+            <div>
+              <strong>Deep Review</strong>
+              <p>Agent reads full text more aggressively when full text is available.</p>
+            </div>
+            <label class="switch">
+              <input id="filter-deep-review" type="checkbox" />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+        </section>
+
+        <section class="filter-section">
+          <div class="filter-section-head">
+            <h4>Choose Databases to Search</h4>
+            <span id="filter-db-count" class="filter-count-pill">4/4</span>
+          </div>
+          <label class="filter-check">
+            <input id="filter-db-scopus" type="checkbox" checked />
+            <span>Scopus <em>Keyword search</em></span>
+          </label>
+          <label class="filter-check">
+            <input id="filter-db-core" type="checkbox" checked />
+            <span>CORE <em>Full-text and metadata</em></span>
+          </label>
+          <label class="filter-check">
+            <input id="filter-db-openalex" type="checkbox" checked />
+            <span>OpenAlex <em>Metadata search</em></span>
+          </label>
+          <label class="filter-check">
+            <input id="filter-db-arxiv" type="checkbox" checked />
+            <span>arXiv <em>Preprint search</em></span>
+          </label>
+        </section>
+
+        <section class="filter-section">
+          <div class="filter-section-head">
+            <h4>Refine Criteria</h4>
+          </div>
+          <div class="filter-subtitle">Publish Year</div>
+          <div class="year-preset-row">
+            <button type="button" class="year-pill active" data-year-preset="any">Any Year</button>
+            <button type="button" class="year-pill" data-year-preset="last2">Last 2 Years</button>
+            <button type="button" class="year-pill" data-year-preset="last3">Last 3 Years</button>
+            <button type="button" class="year-pill" data-year-preset="last5">Last 5 Years</button>
+          </div>
+          <div class="year-range-row">
+            <input id="filter-year-min" type="number" min="1900" max="2100" placeholder="No Min" />
+            <span>to</span>
+            <input id="filter-year-max" type="number" min="1900" max="2100" placeholder="Max" />
+          </div>
+        </section>
+
+        <p class="filter-note">
+          Filters specified in your prompt will still take priority if they clearly conflict with the selections here.
+        </p>
+      </div>
+
+      <div class="filters-sheet-actions">
+        <button id="filters-reset" type="button" class="ghost-button">Reset</button>
+        <button id="filters-apply" type="button">Apply</button>
+      </div>
+    </aside>
+
+    <aside id="output-drawer" class="output-drawer" aria-hidden="true">
+      <div class="drawer-shell panel workspace-panel">
+        <div class="workspace-head">
+          <div>
+            <p class="section-kicker">Workspace</p>
+            <h2>Outputs</h2>
+          </div>
+          <div class="workspace-actions">
+            <button id="drawer-close" type="button" class="ghost-button drawer-close">Hide</button>
+            <button id="download-markdown" type="button" class="ghost-button" disabled>Download Markdown</button>
+            <button id="download-docx" type="button" class="ghost-button" disabled>Download Word</button>
+          </div>
+        </div>
+
+        <div class="tab-row">
+          <button class="tab-button active" data-tab="manager">Manager</button>
+          <button class="tab-button" data-tab="outline">Outline</button>
+          <button class="tab-button" data-tab="papers">Papers</button>
+          <button class="tab-button" data-tab="review">Review</button>
+          <button class="tab-button" data-tab="draft">Draft</button>
+          <button class="tab-button" data-tab="final">Final</button>
+        </div>
+
+        <div id="tab-manager" class="tab-panel active">
+          <pre id="manager-output" class="markdown-block">Manager routing will appear here.</pre>
+        </div>
+        <div id="tab-outline" class="tab-panel">
+          <pre id="outline-output" class="markdown-block">Outline will appear here.</pre>
+        </div>
+        <div id="tab-papers" class="tab-panel">
+          <div id="papers-output" class="stack-list empty-state">No papers yet.</div>
+        </div>
+        <div id="tab-review" class="tab-panel">
+          <pre id="review-output" class="markdown-block">Reviewer feedback will appear here.</pre>
+        </div>
+        <div id="tab-draft" class="tab-panel">
+          <pre id="draft-output" class="markdown-block">Draft will stream here.</pre>
+        </div>
+        <div id="tab-final" class="tab-panel">
+          <pre id="final-output" class="markdown-block">Final manuscript will appear here.</pre>
+        </div>
+      </div>
+    </aside>
+
+    <script src="./config.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

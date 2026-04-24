@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Research Companion</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <div class="backdrop backdrop-a"></div>
+      <div class="backdrop backdrop-b"></div>
+
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Local Companion</p>
+          <h1>Research Companion</h1>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="tabs-shell">
+          <div class="tabs-bar">
+            <button class="tab-button active" id="overviewTabButton" data-tab="overview">Overview</button>
+            <button class="tab-button" id="stateTabButton" data-tab="state">State</button>
+            <button class="tab-button" id="authTabButton" data-tab="auth">OAuth Files</button>
+            <button class="tab-button" id="logTabButton" data-tab="log">Live Log</button>
+          </div>
+
+          <section class="panel tab-panel active" id="overviewTab">
+            <div class="panel-head">
+              <div>
+                <p class="panel-kicker">Runtime</p>
+                <h2>Status</h2>
+              </div>
+              <div class="status-pill" id="statusBadge">OFF</div>
+            </div>
+
+            <div class="status-card">
+              <div class="status-card-copy">
+                <div class="status-title-row">
+                  <h3 id="statusText">Stopped</h3>
+                  <span class="status-dot" id="statusDot"></span>
+                </div>
+                <p id="detailText">Local API: http://127.0.0.1:8787</p>
+              </div>
+              <dl class="meta-grid">
+                <div>
+                  <dt>Runtime</dt>
+                  <dd id="runtimeIdentity">user_oauth</dd>
+                </div>
+                <div>
+                  <dt>OAuth Source</dt>
+                  <dd id="oauthSource">unknown</dd>
+                </div>
+                <div>
+                  <dt>Runtime Phase</dt>
+                  <dd id="runtimePhase">stopped</dd>
+                </div>
+                <div>
+                  <dt>Auth Phase</dt>
+                  <dd id="authPhase">idle</dd>
+                </div>
+              </dl>
+            </div>
+
+            <div class="action-grid">
+              <button class="primary-button" id="startButton">Start Proxy</button>
+              <button class="danger-button" id="stopButton">Stop Proxy</button>
+              <button class="secondary-button" id="oauthButton">Google OAuth</button>
+              <button class="secondary-button" id="openWebButton">Open Web App</button>
+            </div>
+
+            <section class="update-card">
+              <div class="update-head">
+                <div>
+                  <p class="panel-kicker">Release</p>
+                  <h2>Version & Update</h2>
+                </div>
+                <span class="update-badge idle" id="updateBadge">Idle</span>
+              </div>
+              <div class="update-chip-row">
+                <span class="update-chip">Current <strong id="currentVersion">-</strong></span>
+                <span class="update-chip">Latest <strong id="latestVersion">-</strong></span>
+                <span class="update-chip">Channel <strong id="releaseChannel">stable</strong></span>
+              </div>
+              <p class="update-message" id="updateMessage">Update status will appear here.</p>
+              <p class="update-meta" id="updateMeta">No update check has run yet.</p>
+              <div class="action-grid update-actions">
+                <button class="secondary-button" id="checkUpdateButton">Check Update</button>
+                <button class="primary-button" id="installUpdateButton">Update Now</button>
+                <button class="ghost-button" id="releaseNotesButton">Release Notes</button>
+              </div>
+            </section>
+          </section>
+
+          <section class="panel tab-panel" id="stateTab">
+            <section class="event-panel event-panel-full">
+              <div class="event-panel-head">
+                <div>
+                  <p class="panel-kicker">State</p>
+                  <h2>Runtime Events</h2>
+                </div>
+                <span class="panel-note" id="startupStage">idle</span>
+              </div>
+              <div class="event-list event-list-full" id="eventList"></div>
+            </section>
+          </section>
+
+          <section class="panel tab-panel" id="authTab">
+            <section class="auth-panel auth-panel-full">
+              <div class="auth-panel-head">
+                <div>
+                  <p class="panel-kicker">Auth Files</p>
+                  <h2>Saved OAuth</h2>
+                </div>
+                <div class="auth-actions">
+                  <button class="ghost-button compact-button" id="refreshAuthButton">Refresh</button>
+                  <button class="ghost-button compact-button" id="openAuthFolderButton">Open Folder</button>
+                </div>
+              </div>
+              <p class="auth-dir" id="authDir">Loading auth directory...</p>
+              <div class="auth-summary" id="authSummary"></div>
+              <div class="auth-list auth-list-full" id="authList"></div>
+            </section>
+          </section>
+
+          <section class="panel tab-panel" id="logTab">
+            <section class="log-panel log-panel-full">
+              <div class="panel-head">
+                <div>
+                  <p class="panel-kicker">Monitor</p>
+                  <h2>Live Log</h2>
+                </div>
+                <span class="panel-note" id="logCounter">0 lines</span>
+              </div>
+              <div class="log-actions">
+                <button class="ghost-button compact-button" id="clearButton">Clear Log</button>
+                <button class="ghost-button compact-button" id="copyButton">Copy Log</button>
+              </div>
+              <div class="log-wrap" id="logWrap">
+                <pre id="logOutput"></pre>
+              </div>
+            </section>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
