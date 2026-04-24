@@ -325,19 +325,27 @@ def resolve_vertex_runtime_credentials(
     return resolved_user_credentials, requested_project, "user_oauth"
 
 
+def cliproxy_api_base_url() -> str:
+    return os.getenv("CLI_PROXY_API_BASE_URL", CLI_PROXY_API_BASE_URL).strip().rstrip("/") or CLI_PROXY_API_BASE_URL
+
+
+def cliproxy_api_key() -> str:
+    return os.getenv("CLI_PROXY_API_KEY", CLI_PROXY_API_KEY).strip() or CLI_PROXY_API_KEY
+
+
 def cliproxy_headers() -> Dict[str, str]:
     return {
-        "Authorization": f"Bearer {CLI_PROXY_API_KEY or 'sk-dummy'}",
+        "Authorization": f"Bearer {cliproxy_api_key() or 'sk-dummy'}",
         "Content-Type": "application/json",
     }
 
 
 def cliproxy_models_url() -> str:
-    return f"{CLI_PROXY_API_BASE_URL}/models"
+    return f"{cliproxy_api_base_url()}/models"
 
 
 def cliproxy_chat_completions_url() -> str:
-    return f"{CLI_PROXY_API_BASE_URL}/chat/completions"
+    return f"{cliproxy_api_base_url()}/chat/completions"
 
 
 def cliproxy_logs_dir() -> Path:
@@ -522,6 +530,7 @@ def is_cliproxy_auth_error(message: str) -> bool:
             "login cookie",
             "access token",
             "sign in again",
+            "invalid api key",
         ]
     )
 

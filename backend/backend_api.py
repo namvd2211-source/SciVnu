@@ -58,6 +58,7 @@ if __package__ == "backend":
         init_statuses,
         llm_complete_text,
         llm_config_for_role,
+        is_cliproxy_auth_error,
         llm_stream_text,
         localize_in_text_citations,
         normalize_for_match,
@@ -100,6 +101,7 @@ else:
         init_statuses,
         llm_complete_text,
         llm_config_for_role,
+        is_cliproxy_auth_error,
         llm_stream_text,
         localize_in_text_citations,
         normalize_for_match,
@@ -3534,18 +3536,26 @@ def chat_turn(payload: ChatTurnRequest) -> Dict[str, Any]:
         fallback=payload.language,
     )
 
-    raw = llm_complete_text(
-        cfg=manager_cfg,
-        prompt=_workflow_chat_protocol_prompt(
-            language=requested_language,
-            target_word_count=payload.target_word_count,
-            reference_target=payload.reference_target,
-            messages=payload.messages,
-            attachment_context=attachment_context,
-            source_manuscript=source_manuscript,
-            heuristic_research_query=heuristic_query,
-        ),
-    )
+    try:
+        raw = llm_complete_text(
+            cfg=manager_cfg,
+            prompt=_workflow_chat_protocol_prompt(
+                language=requested_language,
+                target_word_count=payload.target_word_count,
+                reference_target=payload.reference_target,
+                messages=payload.messages,
+                attachment_context=attachment_context,
+                source_manuscript=source_manuscript,
+                heuristic_research_query=heuristic_query,
+            ),
+        )
+    except Exception as exc:  # noqa: BLE001
+        if is_cliproxy_auth_error(exc):
+            raise HTTPException(
+                status_code=401,
+                detail="Gemini CLI OAuth is invalid or expired. Open ResearchCompanion.exe, choose the Gemini account, and connect Gemini again.",
+            ) from exc
+        raise
     structured = _extract_json_object(raw)
 
     workflow_intent_detected = structured.get("workflow_intent_detected") is True

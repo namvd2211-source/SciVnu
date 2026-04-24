@@ -6,6 +6,19 @@ The format is based on Keep a Changelog, and versions are intended to map to Git
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-04-25
+### Added
+- Release preparation now generates versioned Windows installer, portable zip, `latest.json`, and structured GitHub release notes.
+- Added a macOS build scaffold documenting the Darwin-only packaging requirements.
+
+### Changed
+- Release documentation now distinguishes the stable updater installer from versioned manual-download assets.
+- CLI proxy requests now read the current local proxy API key at request time to avoid stale auth after runtime refreshes.
+
+### Fixed
+- Chat now reports expired or invalid Gemini CLI OAuth as a clear sign-in error instead of a generic Internal Server Error.
+- Web chat now shows structured backend error details instead of raw JSON response bodies.
+
 ## [1.0.4] - 2026-04-25
 ### Added
 - Desktop companion can mark one Gemini auth file as the active account when multiple accounts are installed.

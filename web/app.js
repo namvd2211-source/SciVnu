@@ -1137,7 +1137,14 @@ async function fetchJson(url, options = {}) {
     throw new Error("Backend API is not connected. Firebase Hosting is returning HTML instead of JSON for /api.");
   }
   if (!response.ok) {
-    throw new Error(body || `${response.status} ${response.statusText}`);
+    let detail = body;
+    try {
+      const payload = JSON.parse(body);
+      if (payload && typeof payload.detail === "string") detail = payload.detail;
+    } catch (_error) {
+      // Keep the raw response body.
+    }
+    throw new Error(detail || `${response.status} ${response.statusText}`);
   }
   return JSON.parse(body);
 }

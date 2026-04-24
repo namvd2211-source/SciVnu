@@ -84,11 +84,22 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_companion_nsis_setup.ps
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\prepare_github_release.ps1
 ```
+  This generates:
+  - `dist\ResearchCompanionSetup.exe` for existing in-app updater compatibility.
+  - `dist\ResearchCompanion_<version>_x64-setup.exe` for manual Windows downloads.
+  - `dist\ResearchCompanion_v<version>_x64_portable.zip` for portable Windows use.
+  - `dist\latest.json` with release asset metadata and SHA-256 hashes.
+  - `dist\release-notes-v<version>.md` for GitHub Release notes.
 - Bump the shared app version:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\set_release_version.ps1 -Version 1.0.1
 ```
 - The build script now cleans old `build_rebuild*` and `dist_rebuild*` folders automatically unless you pass `-KeepLegacyArtifacts`.
+
+## macOS Builds
+- macOS artifacts must be built on macOS; Windows cannot reliably cross-build signed `.app` or `.dmg` packages.
+- `scripts/build_companion_macos.sh` is a scaffold that checks for a Darwin host and documents the required darwin `cli-proxy-api` binary, PyInstaller `.app` packaging, DMG creation, codesigning, and notarization steps.
+- Do not publish macOS rows in release metadata until real macOS artifacts are produced on a macOS build host.
 
 ## Desktop Versioning And Updates
 - The companion now reads its version and updater settings from `config/release_config.json`.
@@ -98,8 +109,9 @@ powershell -ExecutionPolicy Bypass -File .\scripts\set_release_version.ps1 -Vers
   2. Bump `version` in `config/release_config.json`.
   3. Build the release with `scripts/prepare_github_release.ps1`.
   4. Create tag `v<version>`.
-  5. Publish a GitHub Release and upload `ResearchCompanionSetup.exe`.
-- Keep the installer asset name stable so the in-app updater can find it.
+  5. Publish a GitHub Release with the generated release notes and upload all generated assets from `dist`.
+- Keep `ResearchCompanionSetup.exe` uploaded on every release so existing in-app updaters can find the stable installer asset.
+- Upload the versioned setup, portable zip, and `latest.json` alongside the stable installer for clearer manual downloads and future updater metadata.
 
 ## Notes
 - The desktop companion bundles `cli-proxy-api.exe` and installs per-user.

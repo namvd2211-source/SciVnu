@@ -34,6 +34,8 @@ $distExe = Join-Path $distAppDir "ResearchCompanion.exe"
 $distProxy = Join-Path $distAppDir "_internal\bin\cli-proxy-api.exe"
 $nsisScript = Join-Path $root "packaging\ResearchCompanionSetup.nsi"
 $distSetup = Join-Path $root "dist\ResearchCompanionSetup.exe"
+$versionedSetupName = "ResearchCompanion_${appVersion}_x64-setup.exe"
+$versionedSetup = Join-Path $root "dist\$versionedSetupName"
 
 if (-not $SkipBuild) {
   powershell -ExecutionPolicy Bypass -File .\scripts\build_companion_exe.ps1 -BuildMode onedir
@@ -52,6 +54,9 @@ if (-not (Test-Path -LiteralPath $nsisScript)) {
 if (Test-Path -LiteralPath $distSetup) {
   Remove-Item -LiteralPath $distSetup -Force
 }
+if (Test-Path -LiteralPath $versionedSetup) {
+  Remove-Item -LiteralPath $versionedSetup -Force
+}
 
 & $makensis /V2 "/DAPP_SOURCE_DIR=$distAppDirResolved" "/DAPP_VERSION=$appVersion" $nsisScript
 
@@ -59,6 +64,9 @@ if (-not (Test-Path -LiteralPath $distSetup)) {
   throw "NSIS installer build did not produce: $distSetup"
 }
 
+Copy-Item -LiteralPath $distSetup -Destination $versionedSetup -Force
+
 Write-Host ""
 Write-Host "NSIS setup completed (version $appVersion):" -ForegroundColor Green
 Write-Host $distSetup
+Write-Host $versionedSetup
