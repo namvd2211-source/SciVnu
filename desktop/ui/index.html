@@ -23,6 +23,7 @@
           <div class="tabs-bar">
             <button class="tab-button active" id="overviewTabButton" data-tab="overview">Overview</button>
             <button class="tab-button" id="stateTabButton" data-tab="state">State</button>
+            <button class="tab-button" id="updateTabButton" data-tab="update">Update</button>
             <button class="tab-button" id="authTabButton" data-tab="auth">OAuth Files</button>
             <button class="tab-button" id="logTabButton" data-tab="log">Live Log</button>
           </div>
@@ -71,7 +72,23 @@
               <button class="secondary-button" id="openWebButton">Open Web App</button>
             </div>
 
-            <section class="update-card">
+          </section>
+
+          <section class="panel tab-panel" id="stateTab">
+            <section class="event-panel event-panel-full">
+              <div class="event-panel-head">
+                <div>
+                  <p class="panel-kicker">State</p>
+                  <h2>Runtime Events</h2>
+                </div>
+                <span class="panel-note" id="startupStage">idle</span>
+              </div>
+              <div class="event-list event-list-full" id="eventList"></div>
+            </section>
+          </section>
+
+          <section class="panel tab-panel" id="updateTab">
+            <section class="update-card update-card-full">
               <div class="update-head">
                 <div>
                   <p class="panel-kicker">Release</p>
@@ -91,19 +108,6 @@
                 <button class="primary-button" id="installUpdateButton">Update Now</button>
                 <button class="ghost-button" id="releaseNotesButton">Release Notes</button>
               </div>
-            </section>
-          </section>
-
-          <section class="panel tab-panel" id="stateTab">
-            <section class="event-panel event-panel-full">
-              <div class="event-panel-head">
-                <div>
-                  <p class="panel-kicker">State</p>
-                  <h2>Runtime Events</h2>
-                </div>
-                <span class="panel-note" id="startupStage">idle</span>
-              </div>
-              <div class="event-list event-list-full" id="eventList"></div>
             </section>
           </section>
 

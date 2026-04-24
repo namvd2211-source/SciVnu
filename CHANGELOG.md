@@ -6,6 +6,10 @@ The format is based on Keep a Changelog, and versions are intended to map to Git
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-04-25
+### Fixed
+- Release metadata now loads correctly from PowerShell-written JSON files, preventing the companion from showing `0.0.0-dev`.
+
 ## [1.0.2] - 2026-04-24
 ### Added
 - Local companion web UI served from `http://127.0.0.1:8787/` with same-origin API access.

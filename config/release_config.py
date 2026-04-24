@@ -64,7 +64,7 @@ def load_release_config() -> Dict[str, Any]:
     config = dict(DEFAULT_RELEASE_CONFIG)
     for candidate in _candidate_paths():
         try:
-            payload = json.loads(candidate.read_text(encoding="utf-8"))
+            payload = json.loads(candidate.read_text(encoding="utf-8-sig"))
         except Exception:
             continue
         if isinstance(payload, dict):

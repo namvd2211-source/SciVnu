@@ -16,10 +16,12 @@ const elements = {
   eventList: document.getElementById("eventList"),
   overviewTabButton: document.getElementById("overviewTabButton"),
   stateTabButton: document.getElementById("stateTabButton"),
+  updateTabButton: document.getElementById("updateTabButton"),
   authTabButton: document.getElementById("authTabButton"),
   logTabButton: document.getElementById("logTabButton"),
   overviewTab: document.getElementById("overviewTab"),
   stateTab: document.getElementById("stateTab"),
+  updateTab: document.getElementById("updateTab"),
   authTab: document.getElementById("authTab"),
   logTab: document.getElementById("logTab"),
   logOutput: document.getElementById("logOutput"),
@@ -51,6 +53,7 @@ function switchTab(target) {
   const tabs = [
     { button: elements.overviewTabButton, panel: elements.overviewTab, key: "overview" },
     { button: elements.stateTabButton, panel: elements.stateTab, key: "state" },
+    { button: elements.updateTabButton, panel: elements.updateTab, key: "update" },
     { button: elements.authTabButton, panel: elements.authTab, key: "auth" },
     { button: elements.logTabButton, panel: elements.logTab, key: "log" },
   ];
@@ -323,6 +326,7 @@ async function copyLog() {
 function bind() {
   elements.overviewTabButton.addEventListener("click", () => switchTab("overview"));
   elements.stateTabButton.addEventListener("click", () => switchTab("state"));
+  elements.updateTabButton.addEventListener("click", () => switchTab("update"));
   elements.authTabButton.addEventListener("click", () => switchTab("auth"));
   elements.logTabButton.addEventListener("click", () => switchTab("log"));
   elements.startButton.addEventListener("click", async () => {
