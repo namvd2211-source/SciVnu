@@ -15,7 +15,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Deque, Dict, Optional
 
-from release_config import current_app_name, current_version, is_newer_version, load_release_config
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from config.release_config import current_app_name, current_version, is_newer_version, load_release_config
 
 RELEASE_CONFIG = load_release_config()
 APP_TITLE = current_app_name()
@@ -29,8 +33,8 @@ DEFAULT_UPDATE_CHECK_INTERVAL_HOURS = 6.0
 
 @lru_cache(maxsize=1)
 def _runtime_imports():
-    from local_companion_runtime import bundle_root, project_root
-    from local_companion_runtime import configure_local_companion_env
+    from desktop.local_companion_runtime import bundle_root, project_root
+    from desktop.local_companion_runtime import configure_local_companion_env
 
     return bundle_root, project_root, configure_local_companion_env
 
@@ -166,7 +170,7 @@ def _load_runtime_backend_module(settings: Dict[str, Any]):
                 sys.modules["backend_api"] = module
                 spec.loader.exec_module(module)
                 return module, str(backend_path.resolve())
-    import backend_api
+    from backend import backend_api
 
     source_path = getattr(backend_api, "__file__", "")
     return backend_api, str(source_path or "")
@@ -217,7 +221,7 @@ class CompanionController:
             "update_message": (
                 "Automatic updates are ready to use once GitHub Releases are configured."
                 if update_configured
-                else "Automatic updates are not configured yet. Set github_repo in release_config.json."
+                else "Automatic updates are not configured yet. Set github_repo in config/release_config.json."
             ),
             "update_available": False,
             "update_checked_at": "",
@@ -326,7 +330,7 @@ class CompanionController:
             self._update_state_fields(
                 update_configured=False,
                 update_status="not_configured",
-                update_message="Automatic updates are not configured yet. Set github_repo in release_config.json.",
+                update_message="Automatic updates are not configured yet. Set github_repo in config/release_config.json.",
                 update_checked_at=checked_at if manual else "",
             )
             return
@@ -1613,7 +1617,10 @@ def run_gui_mode() -> None:
     bundle_root, _ = _runtime_paths()
     controller = CompanionController(start_monitor=False)
     api = WebviewApi(controller)
-    ui_path = (bundle_root() / "companion_ui" / "index.html").resolve()
+    if getattr(sys, "frozen", False):
+        ui_path = (bundle_root() / "companion_ui" / "index.html").resolve()
+    else:
+        ui_path = (REPO_ROOT / "desktop" / "ui" / "index.html").resolve()
     if not ui_path.exists():
         raise FileNotFoundError(f"Missing companion UI asset: {ui_path}")
 

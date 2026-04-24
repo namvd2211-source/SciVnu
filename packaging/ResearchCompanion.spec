@@ -2,11 +2,11 @@
 
 
 a = Analysis(
-    ['companion_gui.py'],
-    pathex=[],
-    binaries=[('bin\\cli-proxy-api.exe', 'bin')],
-    datas=[('companion_ui', 'companion_ui'), ('backend_api.py', 'backend_runtime'), ('backend_core.py', 'backend_runtime'), ('release_config.json', '.'), ('CHANGELOG.md', 'release_assets')],
-    hiddenimports=['backend_api', 'backend_core', 'local_companion_runtime', 'release_config', 'uvicorn'],
+    ['desktop\\companion_gui.py'],
+    pathex=['.'],
+    binaries=[('packaging\\bin\\cli-proxy-api.exe', 'bin')],
+    datas=[('desktop\\ui', 'companion_ui'), ('backend\\backend_api.py', 'backend_runtime'), ('backend\\backend_core.py', 'backend_runtime'), ('config\\release_config.json', 'config'), ('CHANGELOG.md', 'release_assets')],
+    hiddenimports=['backend.backend_api', 'backend.backend_core', 'desktop.local_companion_runtime', 'config.release_config', 'uvicorn'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

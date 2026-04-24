@@ -12,6 +12,7 @@ import traceback
 import urllib.parse
 import uuid
 import unicodedata
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
@@ -22,49 +23,98 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from release_config import current_version
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-from backend_core import (
-    arxiv_search,
-    build_reference_section,
-    clamp_int,
-    cliproxy_chat_completions_url,
-    core_search,
-    CORE_API_KEY,
-    DEFAULT_LLM_PROVIDER,
-    DEFAULT_GEMINI_MODEL,
-    estimated_reference_words,
-    GOOGLE_GEMINI_OAUTH_SCOPES,
-    LLMConfig,
-    NODE_ORDER,
-    WorkflowHooks,
-    build_llm_config,
-    count_words,
-    default_model_for_provider,
-    execute_workflow,
-    guess_language_label,
-    infer_requested_output_language,
-    cliproxy_available,
-    google_auth_file_save,
-    google_credentials_from_auth_file,
-    google_oauth_userinfo,
-    get_provider_models,
-    init_statuses,
-    llm_complete_text,
-    llm_config_for_role,
-    llm_stream_text,
-    localize_in_text_citations,
-    normalize_for_match,
-    normalize_language_label,
-    openalex_search,
-    read_json_file,
-    resolve_vertex_runtime_credentials,
-    SCOPUS_API_KEY,
-    scopus_search,
-    UNPAYWALL_EMAIL,
-    unpaywall_lookup,
-    write_json_file,
-)
+from config.release_config import current_version
+
+if __package__ == "backend":
+    from backend.backend_core import (
+        arxiv_search,
+        build_reference_section,
+        clamp_int,
+        cliproxy_chat_completions_url,
+        core_search,
+        CORE_API_KEY,
+        DEFAULT_LLM_PROVIDER,
+        DEFAULT_GEMINI_MODEL,
+        estimated_reference_words,
+        GOOGLE_GEMINI_OAUTH_SCOPES,
+        LLMConfig,
+        NODE_ORDER,
+        WorkflowHooks,
+        build_llm_config,
+        count_words,
+        default_model_for_provider,
+        execute_workflow,
+        guess_language_label,
+        infer_requested_output_language,
+        cliproxy_available,
+        google_auth_file_save,
+        google_credentials_from_auth_file,
+        google_oauth_userinfo,
+        get_provider_models,
+        init_statuses,
+        llm_complete_text,
+        llm_config_for_role,
+        llm_stream_text,
+        localize_in_text_citations,
+        normalize_for_match,
+        normalize_language_label,
+        openalex_search,
+        read_json_file,
+        resolve_vertex_runtime_credentials,
+        SCOPUS_API_KEY,
+        scopus_search,
+        UNPAYWALL_EMAIL,
+        unpaywall_lookup,
+        write_json_file,
+    )
+else:
+    from backend_core import (
+        arxiv_search,
+        build_reference_section,
+        clamp_int,
+        cliproxy_chat_completions_url,
+        core_search,
+        CORE_API_KEY,
+        DEFAULT_LLM_PROVIDER,
+        DEFAULT_GEMINI_MODEL,
+        estimated_reference_words,
+        GOOGLE_GEMINI_OAUTH_SCOPES,
+        LLMConfig,
+        NODE_ORDER,
+        WorkflowHooks,
+        build_llm_config,
+        count_words,
+        default_model_for_provider,
+        execute_workflow,
+        guess_language_label,
+        infer_requested_output_language,
+        cliproxy_available,
+        google_auth_file_save,
+        google_credentials_from_auth_file,
+        google_oauth_userinfo,
+        get_provider_models,
+        init_statuses,
+        llm_complete_text,
+        llm_config_for_role,
+        llm_stream_text,
+        localize_in_text_citations,
+        normalize_for_match,
+        normalize_language_label,
+        openalex_search,
+        read_json_file,
+        resolve_vertex_runtime_credentials,
+        SCOPUS_API_KEY,
+        scopus_search,
+        UNPAYWALL_EMAIL,
+        unpaywall_lookup,
+        write_json_file,
+    )
+
+WEB_DIR = str(REPO_ROOT / "web")
 
 
 class ChatMessage(BaseModel):
@@ -173,7 +223,6 @@ _jobs: Dict[str, JobSnapshot] = {}
 _jobs_lock = threading.Lock()
 _job_stop_events: Dict[str, threading.Event] = {}
 _job_stop_lock = threading.Lock()
-WEB_DIR = os.path.join(os.path.dirname(__file__), "web")
 AUTH_STORE_DIR = os.getenv(
     "AUTH_STORE_DIR",
     "/tmp/research-auth" if os.getenv("K_SERVICE") else os.path.join(os.getcwd(), ".auth"),

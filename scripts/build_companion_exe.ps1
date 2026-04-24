@@ -9,10 +9,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $root
 
-$releaseConfigPath = Join-Path $root "release_config.json"
+$releaseConfigPath = Join-Path $root "config\release_config.json"
 if (-not (Test-Path -LiteralPath $releaseConfigPath)) {
   throw "Missing release configuration: $releaseConfigPath"
 }
@@ -22,11 +22,12 @@ $appVersion = [string]$releaseConfig.version
 $vendorDir = Join-Path $root "vendor\cli-proxy-api"
 $vendorBinary = Join-Path $vendorDir "cli-proxy-api.exe"
 $vendorSourceMarker = Join-Path $vendorDir "upstream.txt"
-$proxyBinaryTargetDir = Join-Path $root "bin"
+$proxyBinaryTargetDir = Join-Path $root "packaging\bin"
 $proxyBinaryTarget = Join-Path $proxyBinaryTargetDir "cli-proxy-api.exe"
 $distDir = Join-Path $root $DistRoot
 $buildDir = Join-Path $root $BuildRoot
 $cliProxyRepo = "router-for-me/CLIProxyAPIPlus"
+$rootSpecArtifact = Join-Path $root "ResearchCompanion.spec"
 
 function Remove-BuildArtifact {
   param(
@@ -134,15 +135,16 @@ $pyInstallerArgs = @(
   "--windowed",
   "--distpath", $distDir,
   "--workpath", $buildDir,
-  "--hidden-import", "backend_api",
-  "--hidden-import", "backend_core",
-  "--hidden-import", "local_companion_runtime",
+  "--hidden-import", "backend.backend_api",
+  "--hidden-import", "backend.backend_core",
+  "--hidden-import", "desktop.local_companion_runtime",
+  "--hidden-import", "config.release_config",
   "--hidden-import", "uvicorn",
-  "--add-binary", "bin\cli-proxy-api.exe;bin",
-  "--add-data", "companion_ui;companion_ui",
-  "--add-data", "backend_api.py;backend_runtime",
-  "--add-data", "backend_core.py;backend_runtime",
-  "--add-data", "release_config.json;.",
+  "--add-binary", "packaging\bin\cli-proxy-api.exe;bin",
+  "--add-data", "desktop\ui;companion_ui",
+  "--add-data", "backend\backend_api.py;backend_runtime",
+  "--add-data", "backend\backend_core.py;backend_runtime",
+  "--add-data", "config\release_config.json;config",
   "--add-data", "CHANGELOG.md;release_assets",
   "--name", "ResearchCompanion"
 )
@@ -153,11 +155,15 @@ if ($BuildMode -eq "onedir") {
   $pyInstallerArgs += "--onefile"
 }
 
-$pyInstallerArgs += "companion_gui.py"
+$pyInstallerArgs += "desktop\companion_gui.py"
 
 python @pyInstallerArgs
 if ($LASTEXITCODE -ne 0) {
   throw "PyInstaller build failed."
+}
+
+if (Test-Path -LiteralPath $rootSpecArtifact) {
+  Remove-Item -LiteralPath $rootSpecArtifact -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host ""

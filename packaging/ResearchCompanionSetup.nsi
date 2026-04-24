@@ -13,13 +13,13 @@ CRCCheck on
 !ifndef APP_VERSION
 !define APP_VERSION "0.0.0-dev"
 !endif
-!define APP_ICON "installer_assets\icon.ico"
+!define APP_ICON "${__FILEDIR__}\installer_assets\icon.ico"
 !ifndef APP_SOURCE_DIR
-!define APP_SOURCE_DIR "dist\ResearchCompanion"
+!define APP_SOURCE_DIR "${__FILEDIR__}\..\dist\ResearchCompanion"
 !endif
 
 Name "${APP_NAME}"
-OutFile "dist\ResearchCompanionSetup.exe"
+OutFile "${__FILEDIR__}\..\dist\ResearchCompanionSetup.exe"
 InstallDir "$LOCALAPPDATA\Programs\${APP_DIR}"
 InstallDirRegKey HKCU "Software\${APP_NAME}" "InstallDir"
 RequestExecutionLevel user

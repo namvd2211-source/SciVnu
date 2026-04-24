@@ -43,6 +43,8 @@ def _candidate_paths() -> list[Path]:
     if env_path:
         candidates.append(Path(env_path))
     candidates.append(_module_root() / "release_config.json")
+    candidates.append(_module_root().parent / "release_config.json")
+    candidates.append(_runtime_root() / "config" / "release_config.json")
     candidates.append(_runtime_root() / "release_config.json")
     return candidates
 

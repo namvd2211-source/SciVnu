@@ -9,8 +9,8 @@
     "firebase:serve": "firebase emulators:start --only hosting",
     "firebase:deploy": "firebase deploy --only hosting",
     "firebase:deploy:all": "firebase deploy",
-    "companion:build": "powershell -ExecutionPolicy Bypass -File .\\build_companion_exe.ps1 -BuildMode onedir",
-    "companion:installer": "powershell -ExecutionPolicy Bypass -File .\\build_companion_nsis_setup.ps1",
-    "release:prepare": "powershell -ExecutionPolicy Bypass -File .\\prepare_github_release.ps1"
+    "companion:build": "powershell -ExecutionPolicy Bypass -File .\\scripts\\build_companion_exe.ps1 -BuildMode onedir",
+    "companion:installer": "powershell -ExecutionPolicy Bypass -File .\\scripts\\build_companion_nsis_setup.ps1",
+    "release:prepare": "powershell -ExecutionPolicy Bypass -File .\\scripts\\prepare_github_release.ps1"
   }
 }

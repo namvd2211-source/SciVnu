@@ -9,8 +9,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY backend_api.py .
-COPY backend_core.py .
+COPY backend ./backend
+COPY config ./config
 COPY web ./web
 
-CMD ["python", "backend_api.py"]
+CMD ["python", "-m", "backend.backend_api"]

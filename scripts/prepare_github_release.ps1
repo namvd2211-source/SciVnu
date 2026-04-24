@@ -6,10 +6,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $root
 
-$releaseConfig = Get-Content -LiteralPath (Join-Path $root "release_config.json") -Raw | ConvertFrom-Json
+$releaseConfig = Get-Content -LiteralPath (Join-Path $root "config\release_config.json") -Raw | ConvertFrom-Json
 $version = [string]$releaseConfig.version
 $tagPrefix = [string]$releaseConfig.release_tag_prefix
 $tagName = if ($tagPrefix) { "$tagPrefix$version" } else { $version }
@@ -18,10 +18,10 @@ $githubRepo = [string]$releaseConfig.github_repo
 
 Write-Host "Preparing release $tagName" -ForegroundColor Cyan
 Write-Host "Building companion onedir..."
-powershell -ExecutionPolicy Bypass -File .\build_companion_exe.ps1 -BuildMode onedir -DistRoot $DistRoot -BuildRoot $BuildRoot
+powershell -ExecutionPolicy Bypass -File .\scripts\build_companion_exe.ps1 -BuildMode onedir -DistRoot $DistRoot -BuildRoot $BuildRoot
 
 Write-Host "Building NSIS installer..."
-powershell -ExecutionPolicy Bypass -File .\build_companion_nsis_setup.ps1 -SkipBuild -AppDistDir "$DistRoot\ResearchCompanion"
+powershell -ExecutionPolicy Bypass -File .\scripts\build_companion_nsis_setup.ps1 -SkipBuild -AppDistDir "$DistRoot\ResearchCompanion"
 
 Write-Host ""
 Write-Host "Release artifacts ready:" -ForegroundColor Green
@@ -34,7 +34,7 @@ Write-Host "2. Create git tag $tagName."
 if ($githubRepo) {
   Write-Host "3. Publish release in https://github.com/$githubRepo/releases/new"
 } else {
-  Write-Host "3. Set github_repo in release_config.json before enabling in-app auto-update."
+  Write-Host "3. Set github_repo in config\\release_config.json before enabling in-app auto-update."
 }
 Write-Host "4. Upload dist\$assetName to the release."
 Write-Host "5. Keep the asset name stable so the in-app updater can find it."

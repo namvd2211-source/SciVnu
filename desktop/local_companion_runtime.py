@@ -32,7 +32,7 @@ EDITABLE_BACKEND_FILES = ("backend_api.py", "backend_core.py")
 def project_root() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
-    return Path(__file__).resolve().parent
+    return Path(__file__).resolve().parents[1]
 
 
 def config_search_roots(root: Optional[Path] = None) -> list[Path]:
@@ -161,7 +161,7 @@ def _reserve_port(preferred: int) -> int:
 def _packaged_cli_proxy_binary_candidates(root: Path) -> list[Path]:
     bundle = bundle_root()
     return [
-        root / DEFAULT_PROXY_BIN_DIRNAME / CLI_PROXY_BINARY_NAME,
+        root / "packaging" / DEFAULT_PROXY_BIN_DIRNAME / CLI_PROXY_BINARY_NAME,
         bundle / CLI_PROXY_BINARY_NAME,
         bundle / DEFAULT_PROXY_BIN_DIRNAME / CLI_PROXY_BINARY_NAME,
     ]
@@ -223,7 +223,7 @@ def editable_backend_dir(data_dir: Path) -> Path:
 def _packaged_backend_source_candidates(root: Path, filename: str) -> list[Path]:
     bundle = bundle_root()
     return [
-        root / filename,
+        root / "backend" / filename,
         bundle / "backend_runtime" / filename,
         bundle / filename,
     ]

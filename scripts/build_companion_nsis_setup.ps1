@@ -6,10 +6,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location $root
 
-$releaseConfigPath = Join-Path $root "release_config.json"
+$releaseConfigPath = Join-Path $root "config\release_config.json"
 if (-not (Test-Path -LiteralPath $releaseConfigPath)) {
   throw "Missing release configuration: $releaseConfigPath"
 }
@@ -29,13 +29,14 @@ if (-not $makensis) {
 }
 
 $distAppDir = Join-Path $root $AppDistDir
+$distAppDirResolved = [System.IO.Path]::GetFullPath($distAppDir)
 $distExe = Join-Path $distAppDir "ResearchCompanion.exe"
 $distProxy = Join-Path $distAppDir "_internal\bin\cli-proxy-api.exe"
-$nsisScript = Join-Path $root "ResearchCompanionSetup.nsi"
+$nsisScript = Join-Path $root "packaging\ResearchCompanionSetup.nsi"
 $distSetup = Join-Path $root "dist\ResearchCompanionSetup.exe"
 
 if (-not $SkipBuild) {
-  powershell -ExecutionPolicy Bypass -File .\build_companion_exe.ps1 -BuildMode onedir
+  powershell -ExecutionPolicy Bypass -File .\scripts\build_companion_exe.ps1 -BuildMode onedir
 }
 
 if (-not (Test-Path -LiteralPath $distExe)) {
@@ -52,7 +53,7 @@ if (Test-Path -LiteralPath $distSetup) {
   Remove-Item -LiteralPath $distSetup -Force
 }
 
-& $makensis /V2 "/DAPP_SOURCE_DIR=$AppDistDir" "/DAPP_VERSION=$appVersion" $nsisScript
+& $makensis /V2 "/DAPP_SOURCE_DIR=$distAppDirResolved" "/DAPP_VERSION=$appVersion" $nsisScript
 
 if (-not (Test-Path -LiteralPath $distSetup)) {
   throw "NSIS installer build did not produce: $distSetup"
