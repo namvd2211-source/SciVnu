@@ -13,7 +13,7 @@ from collections import deque
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Callable, Deque, Dict, Optional
+from typing import Any, Callable, Deque, Dict, Optional, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -185,6 +185,7 @@ class CompanionController:
         self.reader_thread: Optional[threading.Thread] = None
         self.health_thread: Optional[threading.Thread] = None
         self.oauth_thread: Optional[threading.Thread] = None
+        self.oauth_cancel_event = threading.Event()
         self.update_thread: Optional[threading.Thread] = None
         self.close_callback: Optional[Callable[[], None]] = None
         self.closing_for_update = False
@@ -449,14 +450,16 @@ class CompanionController:
             return None
         if not isinstance(payload, dict):
             return None
+        auth_payload = cast(Dict[str, Any], payload)
 
-        token = payload.get("token") if isinstance(payload.get("token"), dict) else {}
-        auth_type = str(payload.get("type") or payload.get("provider") or "").strip().lower()
+        token_raw = auth_payload.get("token")
+        token = cast(Dict[str, Any], token_raw) if isinstance(token_raw, dict) else {}
+        auth_type = str(auth_payload.get("type") or auth_payload.get("provider") or "").strip().lower()
         if auth_type not in {"gemini", "gemini-cli"}:
             return None
 
-        email = str(payload.get("email") or "").strip() or "unknown"
-        project_id = str(payload.get("project_id") or "").strip() or "unknown"
+        email = str(auth_payload.get("email") or "").strip() or "unknown"
+        project_id = str(auth_payload.get("project_id") or "").strip() or "unknown"
         expiry = str(token.get("expiry") or "").strip()
         expiry_label = ""
         expired = False
@@ -476,14 +479,17 @@ class CompanionController:
             size_bytes = 0
             modified = ""
 
+        disabled = path.name.endswith(".disabled") or str(auth_payload.get("disabled") or "").lower() == "true"
+        checked = str(auth_payload.get("checked") or "").lower() == "true"
         return {
             "filename": path.name,
             "base_filename": path.name[:-9] if path.name.endswith(".disabled") else path.name,
             "email": email,
             "project_id": project_id,
             "type": auth_type,
-            "checked": bool(payload.get("checked")),
-            "auto": bool(payload.get("auto")),
+            "checked": checked,
+            "active": checked and not disabled and not expired,
+            "auto": bool(auth_payload.get("auto")),
             "has_refresh_token": bool(str(token.get("refresh_token") or "").strip()),
             "expiry": expiry_label,
             "expired": expired,
@@ -491,7 +497,7 @@ class CompanionController:
             "size_kb": f"{(size_bytes / 1024):.1f} KB" if size_bytes else "0 KB",
             "source": "file",
             "runtime_only": False,
-            "disabled": path.name.endswith(".disabled"),
+            "disabled": disabled,
             "path": str(path),
             "modified_ts": stat.st_mtime if "stat" in locals() else 0.0,
         }
@@ -707,19 +713,19 @@ class CompanionController:
         elif "stopping local proxy backend" in lower:
             self._set_runtime_phase("stopping", stage="shutdown")
             self._push_event("runtime", "Stopping local runtime.")
-        elif "google oauth flow" in lower and "starting" in lower:
+        elif "gemini cli oauth flow" in lower and "starting" in lower:
             self._set_auth_phase("starting")
-            self._push_event("auth", "Google OAuth flow requested.")
+            self._push_event("auth", "Gemini CLI OAuth flow requested.")
         elif "management api is unavailable" in lower:
             self._set_auth_phase("management_unavailable")
             self._push_event("auth", "Management API is unavailable for OAuth.")
         elif "requesting gemini auth" in lower:
             self._set_auth_phase("requesting_url")
             self._push_event("auth", "Requested Gemini OAuth URL from management API.")
-        elif "opening browser" in lower and "google oauth" in lower:
+        elif "opening browser" in lower and "gemini cli oauth" in lower:
             self._set_auth_phase("browser_open")
-            self._push_event("auth", "Browser opened for Google OAuth.")
-        elif "waiting for callback" in lower and "google oauth" in lower:
+            self._push_event("auth", "Browser opened for Gemini CLI OAuth.")
+        elif "waiting for callback" in lower and "gemini cli oauth" in lower:
             self._set_auth_phase("waiting_for_callback")
             self._push_event("auth", "Waiting for OAuth callback on localhost.")
         elif "still waiting for browser callback" in lower:
@@ -733,7 +739,7 @@ class CompanionController:
         elif "timed out while waiting for completion" in lower:
             self._set_auth_phase("timeout")
             self._push_event("auth", "OAuth timed out before completion.")
-        elif "google oauth failed" in lower or "failed to start" in lower:
+        elif "gemini cli oauth failed" in lower or "failed to start" in lower:
             self._set_auth_phase("error")
             self._push_event("auth", text)
 
@@ -833,8 +839,6 @@ class CompanionController:
         return str(
             settings.get("GEMINI_CLI_PROJECT_ID")
             or os.getenv("GEMINI_CLI_PROJECT_ID")
-            or settings.get("GOOGLE_OAUTH_PROJECT_ID")
-            or os.getenv("GOOGLE_OAUTH_PROJECT_ID")
             or ""
         ).strip()
 
@@ -907,16 +911,16 @@ class CompanionController:
 
     def _log_gemini_oauth_diagnostics(self, settings: Dict[str, Any], *, reason: str) -> None:
         candidate_dirs = ", ".join(str(path) for path in self._auth_dir_candidates())
-        self._append_log(f"Google OAuth diagnostic: reason={reason}")
-        self._append_log(f"Google OAuth diagnostic: auth directories={candidate_dirs}")
+        self._append_log(f"Gemini CLI OAuth diagnostic: reason={reason}")
+        self._append_log(f"Gemini CLI OAuth diagnostic: auth directories={candidate_dirs}")
         try:
-            self._append_log(f"Google OAuth diagnostic: {self._format_gemini_filesystem_snapshot()}")
+            self._append_log(f"Gemini CLI OAuth diagnostic: {self._format_gemini_filesystem_snapshot()}")
         except Exception as exc:
-            self._append_log(f"Google OAuth diagnostic: filesystem snapshot failed: {exc}")
+            self._append_log(f"Gemini CLI OAuth diagnostic: filesystem snapshot failed: {exc}")
         try:
-            self._append_log(f"Google OAuth diagnostic: {self._format_gemini_management_snapshot(settings)}")
+            self._append_log(f"Gemini CLI OAuth diagnostic: {self._format_gemini_management_snapshot(settings)}")
         except Exception as exc:
-            self._append_log(f"Google OAuth diagnostic: management snapshot failed: {exc}")
+            self._append_log(f"Gemini CLI OAuth diagnostic: management snapshot failed: {exc}")
 
     def _sync_auth_files_across_candidates(self) -> int:
         candidates = self._auth_dir_candidates()
@@ -979,7 +983,7 @@ class CompanionController:
                 last_error = str(exc)
             time.sleep(0.8)
         if last_error:
-            self._append_log(f"Google OAuth: management API not ready: {last_error}")
+            self._append_log(f"Gemini CLI OAuth: management API not ready: {last_error}")
         return False
 
     def _refresh_gemini_auth_after_success(
@@ -996,10 +1000,14 @@ class CompanionController:
             fs_files = self._filesystem_gemini_auth_files()
             current_signatures = {self._auth_entry_signature(item) for item in fs_files}
             if current_signatures and current_signatures != initial_file_signatures:
-                first = fs_files[0]
+                new_files = [item for item in fs_files if self._auth_entry_signature(item) not in initial_file_signatures]
+                first = new_files[0] if new_files else fs_files[0]
                 email = str(first.get("email") or "").strip()
+                base_filename = str(first.get("base_filename") or first.get("filename") or "").strip()
+                if base_filename:
+                    self.set_active_auth_file(base_filename)
                 mirror_note = f" Mirrored {mirrored} auth file(s) across companion folders." if mirrored else ""
-                return True, f"Auth file saved for {email or 'the account'}.{mirror_note}"
+                return True, f"Auth file saved for {email or 'the account'} and set as active.{mirror_note}"
             management_files = self._management_auth_files(settings)
             for item in management_files:
                 runtime_only = bool(item.get("runtime_only"))
@@ -1028,22 +1036,23 @@ class CompanionController:
         self._log_gemini_oauth_diagnostics(settings, reason="no_management_account_and_no_file")
         return False, f"OAuth completed, but no local Gemini auth file was found. Checked: {candidate_dirs}"
 
-    def _run_google_oauth_flow(self) -> None:
+    def _run_gemini_cli_oauth_flow(self) -> None:
+        self.oauth_cancel_event.clear()
         settings = _configure_local_companion_env()
         if not self.is_backend_running():
             result = self.start_backend()
             if not result.get("ok"):
-                self._append_log("Google OAuth: failed to start local proxy first.")
+                self._append_log("Gemini CLI OAuth: failed to start local proxy first.")
                 return
-            self._append_log("Google OAuth: waiting for local proxy to become ready...")
+            self._append_log("Gemini CLI OAuth: waiting for local proxy to become ready...")
 
         if not self._wait_for_management_ready(settings):
-            self._append_log("Google OAuth: management API is unavailable. Restarting proxy with the latest config...")
+            self._append_log("Gemini CLI OAuth: management API is unavailable. Restarting proxy with the latest config...")
             self.stop_backend()
             time.sleep(1.0)
             result = self.start_backend()
             if not result.get("ok") or not self._wait_for_management_ready(settings):
-                self._append_log("Google OAuth: management API is still unavailable after restart.")
+                self._append_log("Gemini CLI OAuth: management API is still unavailable after restart.")
                 return
 
         initial_file_signatures = {self._auth_entry_signature(item) for item in self._filesystem_gemini_auth_files()}
@@ -1064,25 +1073,29 @@ class CompanionController:
             if not auth_url or not oauth_state:
                 raise RuntimeError("Management API did not return a valid Gemini OAuth URL.")
             if project_id:
-                self._append_log(f"Google OAuth: requesting Gemini auth with project_id={project_id}")
+                self._append_log(f"Gemini CLI OAuth: requesting Gemini auth with project_id={project_id}")
             else:
-                self._append_log("Google OAuth: requesting Gemini auth without explicit project_id")
-            self._append_log("Google OAuth: opening browser...")
+                self._append_log("Gemini CLI OAuth: requesting Gemini auth without explicit project_id")
+            self._append_log("Gemini CLI OAuth: opening browser...")
             listener_ready = _can_connect_tcp("127.0.0.1", 8085)
             self._append_log(
-                "Google OAuth: local callback listener on 127.0.0.1:8085 is "
+                "Gemini CLI OAuth: local callback listener on 127.0.0.1:8085 is "
                 + ("ready." if listener_ready else "not reachable yet.")
             )
-            self._append_log("Google OAuth: waiting for callback on http://localhost:8085/oauth2callback")
+            self._append_log("Gemini CLI OAuth: waiting for callback on http://localhost:8085/oauth2callback")
             _open_in_browser(auth_url)
         except Exception as exc:
-            self._append_log(f"Google OAuth failed to start: {exc}")
+            self._append_log(f"Gemini CLI OAuth failed to start: {exc}")
             return
 
         deadline = time.time() + 120.0
         last_wait_log_at = 0.0
         last_status = "wait"
         while time.time() < deadline:
+            if self.oauth_cancel_event.is_set():
+                self._append_log("Gemini CLI OAuth: previous sign-in attempt was cancelled. Starting over is available now.")
+                self._set_auth_phase("idle")
+                return
             try:
                 payload = self._management_get(
                     settings,
@@ -1091,7 +1104,7 @@ class CompanionController:
                     params={"state": oauth_state},
                 )
             except Exception as exc:
-                self._append_log(f"Google OAuth status check failed: {exc}")
+                self._append_log(f"Gemini CLI OAuth status check failed: {exc}")
                 time.sleep(1.0)
                 continue
 
@@ -1102,17 +1115,17 @@ class CompanionController:
                     settings,
                     initial_file_signatures=initial_file_signatures,
                 )
-                self._append_log(f"Google OAuth: {message}")
+                self._append_log(f"Gemini CLI OAuth: {message}")
                 return
             if status in {"error", "failed"}:
                 detail = str(payload.get("message") or payload.get("error") or "Unknown error.").strip()
-                self._append_log(f"Google OAuth failed: {detail}")
+                self._append_log(f"Gemini CLI OAuth failed: {detail}")
                 return
             now = time.time()
             if now - last_wait_log_at >= 15.0:
                 listener_ready = _can_connect_tcp("127.0.0.1", 8085)
                 self._append_log(
-                    "Google OAuth: still waiting for browser callback "
+                    "Gemini CLI OAuth: still waiting for browser callback "
                     f"(state={oauth_state}, listener={'ready' if listener_ready else 'not reachable'})."
                 )
                 last_wait_log_at = now
@@ -1121,13 +1134,13 @@ class CompanionController:
         listener_ready = _can_connect_tcp("127.0.0.1", 8085)
         candidate_dirs = ", ".join(str(path) for path in self._auth_dir_candidates())
         self._append_log(
-            "Google OAuth timed out while waiting for completion. "
+            "Gemini CLI OAuth timed out while waiting for completion. "
             f"Last status={last_status}. "
             f"Callback listener={'ready' if listener_ready else 'not reachable'}. "
             f"Auth directories: {candidate_dirs}"
         )
         self._append_log(
-            "Google OAuth diagnostic: sidecar never reported status=ok/error before timeout. "
+            "Gemini CLI OAuth diagnostic: sidecar never reported status=ok/error before timeout. "
             "The browser callback may not have reached CLI proxy, or onboarding is still stuck upstream."
         )
         self._log_gemini_oauth_diagnostics(settings, reason="callback_not_completed")
@@ -1200,18 +1213,23 @@ class CompanionController:
         for line in process.stdout:
             self._append_log(line.rstrip("\n"))
 
-    def start_google_oauth(self) -> Dict[str, Any]:
+    def start_gemini_cli_oauth(self) -> Dict[str, Any]:
         settings = _configure_local_companion_env()
         proxy_binary = settings["CLI_PROXY_BINARY_PATH"]
         if not proxy_binary:
-            self._append_log("Google OAuth unavailable: CLI proxy binary not found.")
+            self._append_log("Gemini CLI OAuth unavailable: CLI proxy binary not found.")
             return {"ok": False, "message": "CLI proxy binary was not found."}
         if self.oauth_thread and self.oauth_thread.is_alive():
-            self._append_log("Google OAuth is already in progress.")
-            return {"ok": True, "message": "Google OAuth is already in progress."}
+            self._append_log("Gemini CLI OAuth is already waiting for browser callback. Cancelling it and opening a fresh sign-in tab...")
+            self.oauth_cancel_event.set()
+            self.oauth_thread.join(timeout=2.0)
+            if self.oauth_thread.is_alive():
+                self._append_log("Gemini CLI OAuth is still stopping. Try Connect Gemini again in a moment.")
+                return {"ok": False, "message": "Previous Gemini sign-in is still stopping. Try again in a moment."}
 
-        self._append_log("Starting Google OAuth flow...")
-        self.oauth_thread = threading.Thread(target=self._run_google_oauth_flow, daemon=True)
+        self.oauth_cancel_event.clear()
+        self._append_log("Starting Gemini CLI OAuth flow...")
+        self.oauth_thread = threading.Thread(target=self._run_gemini_cli_oauth_flow, daemon=True)
         self.oauth_thread.start()
         return {"ok": True}
 
@@ -1441,6 +1459,14 @@ class CompanionController:
         updated = 0
         base = self._normalize_auth_filename(filename)
         for path in targets:
+            if disabled:
+                try:
+                    payload = json.loads(path.read_text(encoding="utf-8"))
+                    if isinstance(payload, dict):
+                        payload["checked"] = False
+                        path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+                except Exception:
+                    pass
             target = path.with_name(f"{base}.disabled") if disabled else path.with_name(base)
             if path == target:
                 updated += 1
@@ -1456,6 +1482,57 @@ class CompanionController:
         verb = "Disabled" if disabled else "Enabled"
         self._append_log(f"{verb} auth file set for {base} ({updated} path(s)).")
         return {"ok": True, "updated": updated}
+
+    def set_active_auth_file(self, filename: str) -> Dict[str, Any]:
+        base = self._normalize_auth_filename(filename)
+        targets = [path for path in self._auth_file_paths_for_name(filename) if not path.name.endswith(".disabled")]
+        if not base or not targets:
+            return {"ok": False, "message": "Auth file was not found."}
+
+        selected_paths: set[str] = set()
+        for path in targets:
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if not isinstance(payload, dict):
+                continue
+            auth_payload = cast(Dict[str, Any], payload)
+            auth_type = str(auth_payload.get("type") or auth_payload.get("provider") or "").strip().lower()
+            token_raw = auth_payload.get("token")
+            token = cast(Dict[str, Any], token_raw) if isinstance(token_raw, dict) else {}
+            if auth_type in {"gemini", "gemini-cli"} and token and not bool(auth_payload.get("disabled")):
+                selected_paths.add(str(path.resolve()))
+        if not selected_paths:
+            return {"ok": False, "message": "Selectable Gemini auth file was not found."}
+
+        updated = 0
+        for auth_dir in self._auth_dir_candidates():
+            if not auth_dir.exists():
+                continue
+            for path in auth_dir.glob("*.json"):
+                try:
+                    resolved = str(path.resolve())
+                    payload = json.loads(path.read_text(encoding="utf-8"))
+                except Exception:
+                    continue
+                if not isinstance(payload, dict):
+                    continue
+                auth_payload = cast(Dict[str, Any], payload)
+                auth_type = str(auth_payload.get("type") or auth_payload.get("provider") or "").strip().lower()
+                token_raw = auth_payload.get("token")
+                token = cast(Dict[str, Any], token_raw) if isinstance(token_raw, dict) else {}
+                if auth_type not in {"gemini", "gemini-cli"} or not token or bool(auth_payload.get("disabled")):
+                    continue
+                auth_payload["checked"] = resolved in selected_paths
+                try:
+                    path.write_text(json.dumps(auth_payload, indent=2, ensure_ascii=False), encoding="utf-8")
+                    updated += 1
+                except Exception:
+                    continue
+
+        self._append_log(f"Selected active Gemini account: {base} ({updated} auth file(s) updated).")
+        return {"ok": True, "updated": updated, "snapshot": self._auth_snapshot()}
 
     def shutdown(self) -> None:
         self.stop_event.set()
@@ -1488,7 +1565,6 @@ class CompanionController:
                 except Exception:
                     health_payload = {}
                 self.last_health_payload = health_payload or payload
-                google_oauth_source = str(health_payload.get("google_oauth_client_source", "unknown"))
                 auth_phase = str(self.state.get("auth_phase") or "idle")
                 runtime = "gemini_cli_oauth" if auth_phase in {"ready", "runtime_only"} else "user_oauth"
                 self._update_state(
@@ -1498,7 +1574,7 @@ class CompanionController:
                 self._set_running_ui(
                     running=True,
                     status="Running",
-                    detail=f"Local Web UI: {LOCAL_WEB_APP_URL} | auth={auth_phase} | google_oauth={google_oauth_source}",
+                    detail=f"Local Web UI: {LOCAL_WEB_APP_URL} | gemini_auth={auth_phase}",
                 )
                 self._set_runtime_phase("ready", stage="api_live")
             except Exception:
@@ -1545,8 +1621,8 @@ class WebviewApi:
     def stop_backend(self) -> Dict[str, Any]:
         return self.controller.stop_backend()
 
-    def start_google_oauth(self) -> Dict[str, Any]:
-        return self.controller.start_google_oauth()
+    def start_gemini_cli_oauth(self) -> Dict[str, Any]:
+        return self.controller.start_gemini_cli_oauth()
 
     def clear_log(self) -> Dict[str, Any]:
         return self.controller.clear_log()
@@ -1565,6 +1641,9 @@ class WebviewApi:
 
     def set_auth_file_disabled(self, filename: str, disabled: bool) -> Dict[str, Any]:
         return self.controller.set_auth_file_disabled(filename, disabled)
+
+    def set_active_auth_file(self, filename: str) -> Dict[str, Any]:
+        return self.controller.set_active_auth_file(filename)
 
     def check_for_updates(self) -> Dict[str, Any]:
         return self.controller.check_for_updates()
@@ -1650,14 +1729,14 @@ def run_backend_mode() -> None:
                 proxy_process.wait(timeout=2)
 
 
-def run_google_oauth_mode() -> int:
+def run_gemini_cli_oauth_mode() -> int:
     controller = CompanionController(start_monitor=False)
     try:
-        result = controller.start_google_oauth()
+        result = controller.start_gemini_cli_oauth()
         if not result.get("ok"):
-            print(str(result.get("message") or "Google OAuth launch failed."), flush=True)
+            print(str(result.get("message") or "Gemini CLI OAuth launch failed."), flush=True)
             return 1
-        print("Google OAuth launch requested.", flush=True)
+        print("Gemini CLI OAuth launch requested.", flush=True)
         return 0
     finally:
         controller.stop_event.set()
@@ -1706,6 +1785,6 @@ if __name__ == "__main__":
     if "--backend" in sys.argv:
         run_backend_mode()
     elif "--oauth-login" in sys.argv:
-        raise SystemExit(run_google_oauth_mode())
+        raise SystemExit(run_gemini_cli_oauth_mode())
     else:
         run_gui_mode()

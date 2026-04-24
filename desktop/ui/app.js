@@ -111,7 +111,7 @@ function renderAuthFiles(snapshot) {
   if (!files.length) {
     elements.authList.innerHTML = `
       <div class="auth-empty">
-        No Gemini OAuth file has been saved yet. Run <strong>Google OAuth</strong> and complete login in the browser.
+        No Gemini auth file has been saved yet. Run <strong>Connect Gemini</strong> and complete login in the browser.
       </div>
     `;
     return;
@@ -121,16 +121,23 @@ function renderAuthFiles(snapshot) {
     .map((file) => {
       const runtimeOnly = Boolean(file.runtime_only);
       const disabled = Boolean(file.disabled);
-      const statusClass = file.expired ? "expired" : disabled ? "disabled" : runtimeOnly ? "runtime" : "valid";
-      const statusText = file.expired ? "Expired" : disabled ? "Disabled" : runtimeOnly ? "Runtime" : "Ready";
+      const active = Boolean(file.active || file.checked) && !disabled && !runtimeOnly && !file.expired;
+      const statusClass = file.expired ? "expired" : disabled ? "disabled" : runtimeOnly ? "runtime" : active ? "valid active" : "valid";
+      const statusText = file.expired ? "Expired" : disabled ? "Disabled" : runtimeOnly ? "Runtime" : active ? "Active" : "Ready";
       const refreshTokenText = file.has_refresh_token ? "Refresh token saved" : "No refresh token";
       const updatedText = runtimeOnly ? `Loaded in ${file.source || "runtime"}` : file.modified || file.size_kb || "";
       const baseFilename = file.base_filename || file.filename || "";
       const toggleLabel = disabled ? "Enable" : "Disable";
+      const useControl = active
+        ? `<span class="auth-runtime-note">Active account</span>`
+        : !disabled && !file.expired
+          ? `<button class="ghost-button tiny-button auth-active-button" data-filename="${escapeHtml(baseFilename)}">Use</button>`
+          : "";
       const actionButtons = runtimeOnly
         ? `<span class="auth-runtime-note">Runtime-only entry</span>`
         : `
             <div class="auth-item-actions">
+              ${useControl}
               <button class="ghost-button tiny-button auth-toggle-button" data-filename="${escapeHtml(baseFilename)}" data-disabled="${disabled ? "0" : "1"}">${toggleLabel}</button>
               <button class="ghost-button tiny-button auth-delete-button" data-filename="${escapeHtml(baseFilename)}">Delete</button>
             </div>
@@ -176,6 +183,15 @@ function renderAuthFiles(snapshot) {
       const filename = button.getAttribute("data-filename") || "";
       if (!filename) return;
       await callApi("delete_auth_file", button, filename);
+      await refresh();
+    });
+  });
+
+  elements.authList.querySelectorAll(".auth-active-button").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const filename = button.getAttribute("data-filename") || "";
+      if (!filename) return;
+      await callApi("set_active_auth_file", button, filename);
       await refresh();
     });
   });
@@ -338,7 +354,7 @@ function bind() {
     await refresh();
   });
   elements.oauthButton.addEventListener("click", async () => {
-    await callApi("start_google_oauth", elements.oauthButton);
+    await callApi("start_gemini_cli_oauth", elements.oauthButton);
     await refresh();
   });
   elements.openWebButton.addEventListener("click", () => callApi("open_web_app"));

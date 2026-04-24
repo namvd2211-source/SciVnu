@@ -3204,6 +3204,31 @@ def quota() -> Dict[str, Any]:
         }
 
 
+@app.get("/api/models")
+def models() -> Dict[str, Any]:
+    auth_mode = _local_llm_auth_mode()
+    try:
+        models_list, default_model, source_note = _resolve_models(None)
+    except Exception as exc:
+        models_list, default_model, source_note = [], "", str(exc)
+    if auth_mode != "cli_proxy_oauth":
+        return {
+            "available": False,
+            "models": [],
+            "default_model": default_model,
+            "source_note": source_note,
+            "auth_mode": auth_mode,
+            "reason": "Local companion OAuth is required. Start ResearchCompanion.exe and sign in first.",
+        }
+    return {
+        "available": True,
+        "models": models_list,
+        "default_model": default_model,
+        "source_note": source_note,
+        "auth_mode": auth_mode,
+    }
+
+
 @app.post("/api/resource-search")
 def resource_search(payload: ResourceSearchRequest) -> Dict[str, Any]:
     source = str(payload.source or "").strip().lower()

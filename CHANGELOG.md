@@ -6,6 +6,19 @@ The format is based on Keep a Changelog, and versions are intended to map to Git
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-04-25
+### Added
+- Desktop companion can mark one Gemini auth file as the active account when multiple accounts are installed.
+- Local web UI now exposes a persisted Gemini model selector.
+- CLI proxy requests can rotate to another Gemini account when a quota/rate-limit response is encountered.
+- Connect Gemini can cancel a stuck browser callback wait and open a fresh OAuth tab when clicked again.
+
+### Changed
+- Desktop companion now labels the sign-in flow as Gemini CLI OAuth instead of Google OAuth.
+- Desktop runtime no longer loads legacy Google OAuth client-secret files for companion sign-in.
+- Gemini model fallback now tries all available models across model tiers instead of only lower-tier fallbacks.
+- Newly connected Gemini accounts become the only active account immediately after OAuth completes.
+
 ## [1.0.3] - 2026-04-25
 ### Fixed
 - Release metadata now loads correctly from PowerShell-written JSON files, preventing the companion from showing `0.0.0-dev`.

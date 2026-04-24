@@ -18,6 +18,16 @@ Web research-writing workflow with a local desktop companion for user-owned Gemi
 - `config/`: shared release metadata and config helpers.
 - `web/`: hosted web UI.
 
+## Companion Features
+- Local-first web UI at `http://127.0.0.1:8787/` with `/api/live` detection for hosted webapp handoff.
+- Gemini CLI OAuth through the bundled `cli-proxy-api` sidecar; the companion no longer needs legacy Google OAuth client-secret files.
+- Multiple Gemini auth files can be installed, disabled, deleted, and switched with the `Use` action in the desktop companion.
+- When a new Gemini account is connected, it becomes the only active account; other accounts are left installed but inactive.
+- CLI proxy requests can rotate to another installed Gemini account after quota or rate-limit failures.
+- The local web UI includes a persisted Gemini model selector and sends the selected model with chat/workflow requests.
+- Model fallback can try all available Gemini models across tiers instead of only lower-tier models.
+- `Connect Gemini` can be clicked again to cancel a stuck browser callback wait and open a fresh OAuth tab.
+
 ## Repo Layout
 ```text
 backend/

@@ -14,6 +14,7 @@ const LOCAL_COMPANION_ORIGINS = Array.from(
 
 const NODE_ORDER = ["Planner", "Researcher", "Reader", "Writer", "Reviewer", "Editor", "Translator"];
 const MANAGER_LANGUAGE_FALLBACK = "English";
+const MODEL_STORAGE_KEY = "researchCompanion.selectedGeminiModel";
 const DEFAULT_DATABASE_FILTERS = Object.freeze({
   scopus: true,
   core: true,
@@ -26,6 +27,26 @@ const DATABASE_LABELS = Object.freeze({
   openalex: "OpenAlex",
   arxiv: "arXiv",
 });
+
+function loadPersistedModel() {
+  try {
+    return window.localStorage.getItem(MODEL_STORAGE_KEY) || "";
+  } catch (_error) {
+    return "";
+  }
+}
+
+function persistSelectedModel(model) {
+  try {
+    if (model) {
+      window.localStorage.setItem(MODEL_STORAGE_KEY, model);
+    } else {
+      window.localStorage.removeItem(MODEL_STORAGE_KEY);
+    }
+  } catch (_error) {
+    // Ignore storage failures.
+  }
+}
 
 const state = {
   jobId: null,
@@ -41,6 +62,10 @@ const state = {
   lastQuotaKey: "",
   quotaRefreshRecoveringUntil: 0,
   localCompanionConnectedAt: 0,
+  selectedModel: loadPersistedModel(),
+  availableModels: [],
+  defaultModel: "",
+  modelsLoaded: false,
   localProbeDebug: {
     status: "idle",
     origin: "",
@@ -103,6 +128,7 @@ const elements = {
   quotaAccount: document.getElementById("quota-account"),
   quotaTier: document.getElementById("quota-tier"),
   quotaCredits: document.getElementById("quota-credits"),
+  modelSelect: document.getElementById("model-select"),
   quotaBars: document.getElementById("quota-bars"),
   companionDebug: document.getElementById("companion-debug"),
   companionDebugTitle: document.getElementById("companion-debug-title"),
@@ -161,6 +187,43 @@ function renderLlmSourceBadge() {
       ? "LLM: Reconnect OAuth"
       : "LLM: Waiting for Local Companion";
   elements.llmSourceBadge.className = `llm-source-badge ${usingCliProxy ? "cli-proxy" : needsReauth ? "danger" : "vertex"}`;
+}
+
+function renderModelSelect(enabled = state.modelsLoaded) {
+  if (!elements.modelSelect) return;
+  const selected = state.selectedModel || "";
+  const models = Array.from(new Set([...(state.availableModels || [])]));
+  if (selected && !models.includes(selected)) {
+    models.unshift(selected);
+  }
+  const defaultLabel = state.defaultModel ? `Default (${state.defaultModel})` : "Default model";
+  elements.modelSelect.innerHTML = [
+    `<option value="">${escapeHtml(defaultLabel)}</option>`,
+    ...models.map((model) => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`),
+  ].join("");
+  elements.modelSelect.value = selected;
+  elements.modelSelect.disabled = !enabled && models.length === 0;
+}
+
+async function refreshModels() {
+  if (!state.usingLocalCompanion) {
+    state.availableModels = [];
+    state.defaultModel = "";
+    state.modelsLoaded = false;
+    renderModelSelect(false);
+    return;
+  }
+  try {
+    const payload = await fetchJson(apiUrl("/models"));
+    state.availableModels = Array.isArray(payload.models) ? payload.models.map(String).filter(Boolean) : [];
+    state.defaultModel = String(payload.default_model || "");
+    state.modelsLoaded = Boolean(payload.available);
+    renderModelSelect(state.modelsLoaded);
+  } catch (_error) {
+    state.availableModels = [];
+    state.modelsLoaded = false;
+    renderModelSelect(false);
+  }
 }
 
 function quotaWarmupActive() {
@@ -1445,6 +1508,9 @@ async function syncRuntimeMode(options = {}) {
   await detectLocalCompanion();
   if (state.usingLocalCompanion) {
     await refreshLocalCompanionHealth();
+    await refreshModels();
+  } else {
+    await refreshModels();
   }
 
   const runtimeChanged =
@@ -1656,7 +1722,7 @@ async function startWorkflow() {
         ? "Gemini OAuth in ResearchCompanion.exe has expired or become invalid. Reconnect OAuth there, then send your request again."
         : quotaWarmupActive()
           ? "Local companion is still loading Gemini session and quota. Wait a few seconds, then send your request again."
-          : "Complete Google OAuth in ResearchCompanion.exe first, then send your request again."
+          : "Connect Gemini in ResearchCompanion.exe first, then send your request again."
     );
     return;
   }
@@ -1664,7 +1730,7 @@ async function startWorkflow() {
   const payload = {
     messages: workflowMessagesWithFilters(),
     language: MANAGER_LANGUAGE_FALLBACK,
-    model: null,
+    model: state.selectedModel || null,
     attachment_ids: currentAttachmentIds(),
     search_filters: serializedSearchFilters(),
   };
@@ -1866,6 +1932,14 @@ function init() {
   initTabs();
   initComposer();
   initFilters();
+  renderModelSelect(false);
+  if (elements.modelSelect) {
+    elements.modelSelect.addEventListener("change", () => {
+      state.selectedModel = elements.modelSelect.value || "";
+      persistSelectedModel(state.selectedModel);
+      renderModelSelect(state.modelsLoaded);
+    });
+  }
   startLocalCompanionWatcher();
 
   syncRuntimeMode({ forceQuota: true }).catch(() => {

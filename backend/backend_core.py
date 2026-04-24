@@ -461,11 +461,19 @@ def cliproxy_auth_entries() -> List[Tuple[Path, Dict[str, Any]]]:
             auth_type = str(payload.get("type") or payload.get("provider") or "").strip().lower()
             if auth_type not in {"gemini", "gemini-cli"}:
                 continue
+            if bool(payload.get("disabled")):
+                continue
             token_info = payload.get("token") if isinstance(payload.get("token"), dict) else {}
             if not token_info:
                 continue
             entries.append((path, payload))
-    entries.sort(key=lambda item: item[0].stat().st_mtime if item[0].exists() else 0, reverse=True)
+    entries.sort(
+        key=lambda item: (
+            not bool(item[1].get("checked", True)),
+            -(item[0].stat().st_mtime if item[0].exists() else 0),
+            item[0].name,
+        )
+    )
     return entries
 
 
@@ -1707,11 +1715,11 @@ def model_family(model: str) -> str:
 
 
 def compatible_fallback_models(model: str, available_models: List[str]) -> List[str]:
+    available = [item for item in available_models if item != model]
     family = model_family(model)
-    same_family = [item for item in available_models if item != model and model_family(item) == family]
-    if same_family:
-        return same_family
-    return [item for item in available_models if item != model][:2]
+    same_family = [item for item in available if model_family(item) == family]
+    cross_family = [item for item in available if item not in same_family]
+    return same_family + cross_family
 
 
 def build_llm_config(
@@ -1774,10 +1782,11 @@ def ordered_models_for_series(series: str, available_models: List[str]) -> List[
         for candidate in family:
             if candidate in available and candidate not in ordered:
                 ordered.append(candidate)
-    if ordered:
-        return ordered[:3]
     fallback = [candidate for candidate in available if candidate.startswith("gemini-")]
-    return (fallback or available)[:3]
+    for candidate in fallback or available:
+        if candidate not in ordered:
+            ordered.append(candidate)
+    return ordered
 
 
 def llm_config_for_role(cfg: LLMConfig, role: str) -> LLMConfig:
@@ -1814,6 +1823,35 @@ def retry_delay_seconds(exc: Exception) -> float:
     return 2.0
 
 
+def is_quota_exhausted_error(value: Any) -> bool:
+    message = str(value or "").lower()
+    return any(token in message for token in ["429", "resource_exhausted", "quota", "rate limit"])
+
+
+def rotate_cliproxy_auth_account() -> Optional[str]:
+    entries = cliproxy_auth_entries()
+    if len(entries) < 2:
+        return None
+    current_index = 0
+    for index, (_path, payload) in enumerate(entries):
+        if bool(payload.get("checked", True)):
+            current_index = index
+            break
+    next_index = (current_index + 1) % len(entries)
+    if next_index == current_index:
+        return None
+
+    selected_path = entries[next_index][0]
+    selected_name = selected_path.name
+    for path, payload in entries:
+        payload["checked"] = path == selected_path
+        try:
+            path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            continue
+    return selected_name
+
+
 def decode_proxy_bytes(value: Any) -> str:
     if isinstance(value, bytes):
         for encoding in ("utf-8", "utf-8-sig", "cp1252", "latin-1"):
@@ -1827,6 +1865,8 @@ def decode_proxy_bytes(value: Any) -> str:
 
 def cliproxy_stream_text(*, model: str, prompt: str, should_stop: Optional[Callable[[], None]] = None) -> Iterator[str]:
     auth_refresh_attempted = False
+    rotate_attempts = 0
+    max_rotate_attempts = max(0, len(cliproxy_auth_entries()) - 1)
     while True:
         if should_stop:
             should_stop()
@@ -1860,6 +1900,12 @@ def cliproxy_stream_text(*, model: str, prompt: str, should_stop: Optional[Calla
                 message = f"{message} Response: {detail}"
             if hint:
                 message = f"{message} Hint: {hint}"
+            if is_quota_exhausted_error(f"{response.status_code} {detail}") and rotate_attempts < max_rotate_attempts:
+                rotated_name = rotate_cliproxy_auth_account()
+                if rotated_name:
+                    rotate_attempts += 1
+                    time.sleep(0.5)
+                    continue
             raise RuntimeError(message)
 
         for raw_line in response.iter_lines(decode_unicode=False):
@@ -1892,7 +1938,7 @@ def cliproxy_stream_text(*, model: str, prompt: str, should_stop: Optional[Calla
 
 
 def llm_stream_text(*, cfg: LLMConfig, prompt: str, should_stop: Optional[Callable[[], None]] = None) -> Iterator[str]:
-    candidate_models = [cfg.model] + [model for model in cfg.fallback_models if model != cfg.model][:2]
+    candidate_models = list(dict.fromkeys([cfg.model] + [model for model in cfg.fallback_models if model != cfg.model]))
     last_error: Optional[Exception] = None
 
     for candidate_model in candidate_models:

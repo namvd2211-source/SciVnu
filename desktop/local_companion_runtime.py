@@ -14,7 +14,6 @@ DEFAULT_PUBLIC_BACKEND_URL = "http://127.0.0.1:8787"
 DEFAULT_FRONTEND_ORIGIN = "https://sci-vnucea.web.app"
 DEFAULT_REMOTE_RESOURCE_API_BASE_URL = "https://research-backend-213473562655.asia-southeast1.run.app"
 DEFAULT_LOCATION = "global"
-DEFAULT_GOOGLE_OAUTH_PROJECT_ID = "sci-vnucea"
 DEFAULT_GEMINI_CLI_PROJECT_ID = "GOOGLE_ONE"
 DEFAULT_PROXY_HOST = "127.0.0.1"
 DEFAULT_PROXY_PORT = 8797
@@ -105,23 +104,6 @@ def apply_env_mapping(values: Dict[str, str]) -> None:
     for key, value in values.items():
         os.environ[key] = value
 
-
-def load_client_secret_from_file(root: Path) -> Dict[str, str]:
-    for search_root in config_search_roots(root):
-        for candidate in search_root.glob("client_secret_*.json"):
-            try:
-                raw = json.loads(candidate.read_text(encoding="utf-8"))
-                web = raw.get("web") if isinstance(raw, dict) else None
-                if not isinstance(web, dict):
-                    continue
-                return {
-                    "GOOGLE_OAUTH_CLIENT_ID": str(web.get("client_id") or "").strip(),
-                    "GOOGLE_OAUTH_CLIENT_SECRET": str(web.get("client_secret") or "").strip(),
-                    "GOOGLE_OAUTH_PROJECT_ID": str(web.get("project_id") or "").strip(),
-                }
-            except Exception:
-                continue
-    return {}
 
 
 def _read_json(path: Path) -> Dict[str, str]:
@@ -446,10 +428,6 @@ def configure_local_companion_env(root: Path | None = None) -> Dict[str, str]:
     os.environ.pop("UNPAYWALL_EMAIL", None)
     os.environ.pop("GEMINI_API_KEY", None)
 
-    if not os.getenv("GOOGLE_OAUTH_CLIENT_ID") or not os.getenv("GOOGLE_OAUTH_CLIENT_SECRET"):
-        apply_env_mapping(load_client_secret_from_file(root))
-    if not os.getenv("GOOGLE_OAUTH_PROJECT_ID"):
-        os.environ["GOOGLE_OAUTH_PROJECT_ID"] = DEFAULT_GOOGLE_OAUTH_PROJECT_ID
     if not os.getenv("GEMINI_CLI_PROJECT_ID"):
         os.environ["GEMINI_CLI_PROJECT_ID"] = DEFAULT_GEMINI_CLI_PROJECT_ID
 
@@ -460,10 +438,7 @@ def configure_local_companion_env(root: Path | None = None) -> Dict[str, str]:
         "REMOTE_RESOURCE_API_BASE_URL": os.getenv("REMOTE_RESOURCE_API_BASE_URL", DEFAULT_REMOTE_RESOURCE_API_BASE_URL),
         "GOOGLE_CLOUD_PROJECT": os.getenv("GOOGLE_CLOUD_PROJECT", ""),
         "GOOGLE_CLOUD_LOCATION": os.getenv("GOOGLE_CLOUD_LOCATION", DEFAULT_LOCATION),
-        "GOOGLE_OAUTH_PROJECT_ID": os.getenv("GOOGLE_OAUTH_PROJECT_ID", ""),
         "GEMINI_CLI_PROJECT_ID": os.getenv("GEMINI_CLI_PROJECT_ID", DEFAULT_GEMINI_CLI_PROJECT_ID),
-        "GOOGLE_OAUTH_CLIENT_ID_PRESENT": "yes" if os.getenv("GOOGLE_OAUTH_CLIENT_ID") else "no",
-        "GOOGLE_OAUTH_CLIENT_SECRET_PRESENT": "yes" if os.getenv("GOOGLE_OAUTH_CLIENT_SECRET") else "no",
         "CLI_PROXY_BINARY_PATH": proxy_runtime["binary_path"],
         "CLI_PROXY_CONFIG_PATH": proxy_runtime["config_path"],
         "CLI_PROXY_AUTH_DIR": proxy_runtime["auth_dir"],
