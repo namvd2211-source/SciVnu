@@ -1,7 +1,7 @@
 ﻿{
     "name":  "sci-vnucea-research-assistant",
     "private":  true,
-    "version":  "1.0.8",
+    "version":  "1.0.8.1",
     "description":  "Local-first academic research and writing assistant.",
     "scripts":  {
                     "companion:build":  "powershell -ExecutionPolicy Bypass -File .\\scripts\\build_companion_exe.ps1 -BuildMode onedir",

@@ -36,6 +36,9 @@ const elements = {
   releaseChannel: document.getElementById("releaseChannel"),
   updateBadge: document.getElementById("updateBadge"),
   updateMessage: document.getElementById("updateMessage"),
+  updateProgress: document.getElementById("updateProgress"),
+  updateProgressFill: document.getElementById("updateProgressFill"),
+  updateProgressLabel: document.getElementById("updateProgressLabel"),
   updateMeta: document.getElementById("updateMeta"),
   checkUpdateButton: document.getElementById("checkUpdateButton"),
   installUpdateButton: document.getElementById("installUpdateButton"),
@@ -241,12 +244,25 @@ function renderUpdate(snapshot) {
   const publishedAt = snapshot.update_published_at || "";
   const configured = Boolean(snapshot.update_configured);
   const available = Boolean(snapshot.update_available);
+  const downloadPercent = Math.max(0, Math.min(100, Number(snapshot.update_download_percent || 0)));
+  const downloadBytes = Number(snapshot.update_download_bytes || 0);
+  const downloadTotalBytes = Number(snapshot.update_download_total_bytes || 0);
 
   elements.currentVersion.textContent = currentVersion;
   elements.latestVersion.textContent = latestVersion;
   elements.releaseChannel.textContent = releaseChannel;
   elements.updateMessage.textContent =
     snapshot.update_message || "Update status will appear here.";
+
+  const showProgress = updateStatus === "downloading" || updateStatus === "launching_installer" || updateStatus === "closing_for_update";
+  elements.updateProgress.hidden = !showProgress;
+  elements.updateProgress.setAttribute("aria-hidden", showProgress ? "false" : "true");
+  elements.updateProgressFill.style.width = `${showProgress ? downloadPercent : 0}%`;
+  elements.updateProgressLabel.textContent = downloadTotalBytes
+    ? `${downloadPercent}%`
+    : downloadBytes
+      ? `${(downloadBytes / (1024 * 1024)).toFixed(1)} MB`
+      : "0%";
 
   const metaParts = [];
   if (checkedAt) metaParts.push(`Checked ${checkedAt}`);

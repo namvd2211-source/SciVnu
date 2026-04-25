@@ -54,11 +54,47 @@ Keep this high-level model in mind:
 - `scripts/` contains build and release automation.
 - `packaging/` contains installer and PyInstaller assets.
 
+Primary source map:
+
+```text
+backend/
+  backend_api.py              FastAPI routes, API contracts, quota/resource endpoints
+  backend_core.py             workflow orchestration, role routing, LLM fallback, literature search
+desktop/
+  companion_gui.py            desktop shell, tray behavior, updater UI, Gemini account controls
+  local_companion_runtime.py  local runtime bootstrap and environment isolation
+  ui/                         companion control panel assets
+web/
+  index.html                  main research workspace markup
+  app.js                      browser-side workflow, filters, uploads, API calls
+  styles.css                  main UI theme and responsive layout
+config/
+  release_config.json         version, GitHub release, updater metadata
+scripts/                      build, versioning, release preparation automation
+packaging/                    PyInstaller spec, NSIS installer, app icons
+```
+
 The local desktop companion serves the local web UI at `http://127.0.0.1:8787/` and connects to the user's Gemini CLI OAuth quota through the bundled CLI proxy.
 
 This project is local-first and should not depend on Firebase Hosting. Cloud Run and Secret Manager may still be used for resource-search endpoints that must keep shared academic database API keys off the desktop.
 
 Cloud resource search keeps academic database API keys on the cloud backend. Do not move Scopus, CORE, Semantic Scholar, or similar shared resource API keys into the local desktop runtime.
+
+## Common Change Paths
+
+- User-facing copy, filters, upload UX, and research workspace controls: edit `web/` first.
+- Desktop companion behavior, tray/menu/update/account management: edit `desktop/companion_gui.py` and `desktop/ui/`.
+- Local runtime bootstrapping, env isolation, or bundled CLI proxy wiring: edit `desktop/local_companion_runtime.py`.
+- Workflow nodes, model routing, Gemini fallback, and search aggregation: edit `backend/backend_core.py`.
+- API request/response shapes, quota endpoints, and cloud resource-search endpoints: edit `backend/backend_api.py`.
+- Release versioning and packaging: edit `config/release_config.json`, `scripts/`, and `packaging/`.
+
+## Generated and Vendor Boundaries
+
+- Do not edit `build/`; it is disposable PyInstaller output.
+- Do not edit generated files in `dist/` except while preparing or verifying a release.
+- Do not modify `vendor/cli-proxy-api/` unless the task is explicitly about updating the bundled CLI proxy binary.
+- Keep `ResearchCompanionSetup.exe` as a release asset because existing installed clients use that stable updater filename.
 
 ## LLM and Workflow Notes
 
@@ -124,6 +160,13 @@ Compile-check changed Python files:
 ```powershell
 python -m py_compile backend/backend_core.py backend/backend_api.py desktop/local_companion_runtime.py
 ```
+
+There is no formal test suite documented yet. Minimum verification expectations:
+
+- Python/backend changes: run `py_compile` on changed Python entrypoints.
+- UI changes: run the local companion or local web UI and manually verify the changed path when possible.
+- Release changes: run the release preparation script and verify expected files exist in `dist/`.
+- Cloud resource-search changes: keep shared API keys in Secret Manager/Cloud Run and smoke-test the cloud endpoint when credentials are involved.
 
 Prepare Windows release artifacts:
 

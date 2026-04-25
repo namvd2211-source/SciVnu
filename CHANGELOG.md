@@ -6,6 +6,10 @@ The format is based on Keep a Changelog, and versions are intended to map to Git
 
 ## [Unreleased]
 
+## [1.0.8.1] - 2026-04-25
+### Added
+- Update installs now show a live download progress bar with percentage in the companion Update tab.
+
 ## [1.0.8] - 2026-04-25
 ### Added
 - Desktop companion can minimize to the Windows system tray and keep the local runtime available after closing the window.

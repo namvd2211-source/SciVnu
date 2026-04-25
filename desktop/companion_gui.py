@@ -311,6 +311,9 @@ class CompanionController:
             "update_release_url": "",
             "update_published_at": "",
             "update_asset_name": str(self.release_config.get("release_asset_name") or "ResearchCompanionSetup.exe"),
+            "update_download_percent": 0,
+            "update_download_bytes": 0,
+            "update_download_total_bytes": 0,
         }
         self._append_log("Companion ready.")
         self._append_log(f"Local web app: {LOCAL_WEB_APP_URL}")
@@ -1432,7 +1435,10 @@ class CompanionController:
 
             self._update_state_fields(
                 update_status="downloading",
-                update_message=f"Downloading installer {download_name}...",
+                update_message=f"Downloading installer {download_name}... 0%",
+                update_download_percent=0,
+                update_download_bytes=0,
+                update_download_total_bytes=0,
             )
             session = _local_requests_session()
             with session.get(
@@ -1443,15 +1449,36 @@ class CompanionController:
             ) as response:
                 if not response.ok:
                     raise RuntimeError(f"Installer download returned HTTP {response.status_code}.")
+                total_bytes = int(response.headers.get("content-length") or 0)
+                downloaded_bytes = 0
+                last_reported_percent = -1
+                self._update_state_fields(update_download_total_bytes=total_bytes)
                 with target_path.open("wb") as handle:
                     for chunk in response.iter_content(chunk_size=1024 * 256):
                         if chunk:
                             handle.write(chunk)
+                            downloaded_bytes += len(chunk)
+                            percent = int((downloaded_bytes * 100) / total_bytes) if total_bytes else 0
+                            if percent != last_reported_percent:
+                                last_reported_percent = percent
+                                progress_label = f"{percent}%" if total_bytes else f"{downloaded_bytes / (1024 * 1024):.1f} MB"
+                                self._update_state_fields(
+                                    update_status="downloading",
+                                    update_message=f"Downloading installer {download_name}... {progress_label}",
+                                    update_download_percent=percent,
+                                    update_download_bytes=downloaded_bytes,
+                                    update_download_total_bytes=total_bytes,
+                                )
+            self._update_state_fields(
+                update_download_percent=100,
+                update_download_bytes=downloaded_bytes,
+                update_download_total_bytes=total_bytes or downloaded_bytes,
+            )
             self._append_log(f"Downloaded update installer to {target_path}")
 
             self._update_state_fields(
                 update_status="launching_installer",
-                update_message="Launching update installer...",
+                update_message="Download complete. Launching update installer...",
             )
             creationflags = 0
             if os.name == "nt":
