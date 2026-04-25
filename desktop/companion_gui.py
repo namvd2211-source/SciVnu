@@ -8,6 +8,7 @@ import os
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from collections import deque
@@ -31,6 +32,7 @@ BACKEND_READY_TIMEOUT = 15.0
 STATE_POLL_INTERVAL = 1.0
 MAX_LOG_LINES = 1200
 DEFAULT_UPDATE_CHECK_INTERVAL_HOURS = 6.0
+UPDATE_INSTALLER_MAX_AGE_SECONDS = 24 * 3600
 
 
 @lru_cache(maxsize=1)
@@ -316,6 +318,9 @@ class CompanionController:
             "update_download_total_bytes": 0,
         }
         self._append_log("Companion ready.")
+        cleaned_installers = self._cleanup_update_installers()
+        if cleaned_installers:
+            self._append_log(f"Cleaned {cleaned_installers} old update installer(s) from temp.")
         self._append_log(f"Local web app: {LOCAL_WEB_APP_URL}")
         self._append_log(
             f"{self.state['app_name']} version {self.state['app_version']} ({self.state['release_channel']})"
@@ -396,14 +401,23 @@ class CompanionController:
         return None
 
     def _update_downloads_dir(self) -> Path:
-        local_appdata = os.getenv("LOCALAPPDATA", "").strip()
-        if local_appdata:
-            target = Path(local_appdata) / "ResearchCompanion" / "updates"
-        else:
-            _, project_root = _runtime_paths()
-            target = project_root() / ".research-companion" / "updates"
+        target = Path(tempfile.gettempdir()) / "ResearchCompanion" / "updates"
         target.mkdir(parents=True, exist_ok=True)
         return target
+
+    def _cleanup_update_installers(self, *, max_age_seconds: int = UPDATE_INSTALLER_MAX_AGE_SECONDS) -> int:
+        target = self._update_downloads_dir()
+        cutoff = time.time() - max_age_seconds
+        removed = 0
+        for item in target.glob("ResearchCompanionSetup-*.exe"):
+            try:
+                if item.stat().st_mtime > cutoff:
+                    continue
+                item.unlink()
+                removed += 1
+            except Exception:
+                continue
+        return removed
 
     def _update_state_fields(self, **updates: Any) -> None:
         self._update_state(**updates)
@@ -1423,7 +1437,13 @@ class CompanionController:
         safe_version = "".join(ch for ch in (target_version or "latest") if ch.isalnum() or ch in {".", "-", "_"})
         suffix = Path(asset_name or "ResearchCompanionSetup.exe").suffix or ".exe"
         download_name = f"ResearchCompanionSetup-{safe_version}{suffix}"
-        target_path = self._update_downloads_dir() / download_name
+        update_downloads_dir = self._update_downloads_dir()
+        for stale_installer in update_downloads_dir.glob("ResearchCompanionSetup-*.exe"):
+            try:
+                stale_installer.unlink()
+            except Exception:
+                continue
+        target_path = update_downloads_dir / download_name
 
         try:
             self._update_state_fields(

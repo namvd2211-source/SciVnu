@@ -6,6 +6,11 @@ The format is based on Keep a Changelog, and versions are intended to map to Git
 
 ## [Unreleased]
 
+## [1.0.8.2] - 2026-04-25
+### Changed
+- Update installers are now downloaded to the system temp folder instead of the persistent local app data folder.
+- The companion cleans old temp update installers on startup and removes stale installers before downloading a new update.
+
 ## [1.0.8.1] - 2026-04-25
 ### Added
 - Update installs now show a live download progress bar with percentage in the companion Update tab.
