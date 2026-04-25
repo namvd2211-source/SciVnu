@@ -65,6 +65,8 @@ if __package__ == "backend":
         normalize_language_label,
         openalex_search,
         read_json_file,
+        semantic_scholar_search,
+        SEMANTIC_SCHOLAR_API_KEY,
         resolve_vertex_runtime_credentials,
         SCOPUS_API_KEY,
         scopus_search,
@@ -108,6 +110,8 @@ else:
         normalize_language_label,
         openalex_search,
         read_json_file,
+        semantic_scholar_search,
+        SEMANTIC_SCHOLAR_API_KEY,
         resolve_vertex_runtime_credentials,
         SCOPUS_API_KEY,
         scopus_search,
@@ -174,7 +178,7 @@ class DocxRenderRequest(BaseModel):
 
 
 class ResourceSearchRequest(BaseModel):
-    source: Literal["scopus", "core", "openalex", "arxiv"]
+    source: Literal["scopus", "core", "semantic_scholar", "openalex", "arxiv"]
     topic: str = Field(default="", max_length=4000)
     max_results: int = Field(default=25, ge=1, le=100)
 
@@ -251,7 +255,7 @@ AUTH_STORE_DIR = os.getenv(
     "/tmp/research-auth" if os.getenv("K_SERVICE") else os.path.join(os.getcwd(), ".auth"),
 )
 UPLOAD_STORE_DIR = os.path.join(AUTH_STORE_DIR, "uploads")
-FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "https://sci-vnucea.web.app").strip()
+FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://127.0.0.1:8787").strip()
 PUBLIC_BACKEND_URL = os.getenv(
     "PUBLIC_BACKEND_URL",
     "https://research-backend-213473562655.asia-southeast1.run.app",
@@ -3250,6 +3254,10 @@ def resource_search(payload: ResourceSearchRequest) -> Dict[str, Any]:
             if not CORE_API_KEY.strip():
                 raise HTTPException(status_code=503, detail="CORE API key is not configured on the cloud backend.")
             items = core_search(api_key=CORE_API_KEY, topic=topic, max_results=max_results)
+        elif source == "semantic_scholar":
+            if not SEMANTIC_SCHOLAR_API_KEY.strip():
+                raise HTTPException(status_code=503, detail="Semantic Scholar API key is not configured on the cloud backend.")
+            items = semantic_scholar_search(api_key=SEMANTIC_SCHOLAR_API_KEY, topic=topic, max_results=max_results)
         elif source == "openalex":
             items = openalex_search(topic=topic, max_results=max_results)
         elif source == "arxiv":
@@ -3788,7 +3796,7 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(
-        "backend_api:app",
+        "backend.backend_api:app",
         host="0.0.0.0",
         port=int(os.getenv("PORT", "8080")),
         reload=False,

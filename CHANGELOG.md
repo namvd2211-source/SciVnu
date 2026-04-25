@@ -6,6 +6,20 @@ The format is based on Keep a Changelog, and versions are intended to map to Git
 
 ## [Unreleased]
 
+## [1.0.7] - 2026-04-25
+### Added
+- Literature search can query Semantic Scholar through the cloud resource backend and expose it in the database filter UI.
+- Added project-level Claude guidance documenting the academic product positioning and local-first architecture.
+
+### Changed
+- Semantic Scholar requests are rate-limited below one request per second and use the cloud Secret Manager API key instead of local companion secrets.
+- README now presents the app as an academic research and writing assistant for end users.
+- The app is now local-first without Firebase Hosting configuration or hosted webapp messaging.
+- The filter sheet Apply button now matches the rest of the dark UI controls.
+
+### Fixed
+- Cloud Run backend startup now uses the package-qualified ASGI module path.
+
 ## [1.0.6] - 2026-04-25
 ### Changed
 - Writer node now logs the Gemini model fallback chain and section-level streaming progress.

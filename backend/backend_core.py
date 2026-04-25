@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 import time
 import unicodedata
 import xml.etree.ElementTree as ET
@@ -52,6 +53,7 @@ load_local_env()
 SCOPUS_API_KEY = os.getenv("SCOPUS_API_KEY", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 CORE_API_KEY = os.getenv("CORE_API_KEY", "")
+SEMANTIC_SCHOLAR_API_KEY = os.getenv("SEMANTIC_SCHOLAR_API_KEY", "")
 UNPAYWALL_EMAIL = os.getenv("UNPAYWALL_EMAIL", "namvd@vnu.edu.vn")
 GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT", "")
 GOOGLE_CLOUD_LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "global")
@@ -78,6 +80,8 @@ SCOPUS_MAX_RESULTS = 25
 CORE_MAX_RESULTS = env_int("CORE_MAX_RESULTS", 15)
 OPENALEX_MAX_RESULTS = env_int("OPENALEX_MAX_RESULTS", 15)
 ARXIV_MAX_RESULTS = env_int("ARXIV_MAX_RESULTS", 15)
+SEMANTIC_SCHOLAR_MAX_RESULTS = env_int("SEMANTIC_SCHOLAR_MAX_RESULTS", 15)
+SEMANTIC_SCHOLAR_MIN_INTERVAL_SECONDS = 1.1
 TOP_SEARCH_RESULTS = env_int("TOP_SEARCH_RESULTS", 12)
 SCOPUS_MAX_SERVICE_COUNT = 25
 GOOGLE_GEMINI_OAUTH_SCOPES = [
@@ -1248,6 +1252,83 @@ def openalex_authors(authorships: Any) -> str:
         if name:
             names.append(name)
     return "; ".join(names)
+
+
+_semantic_scholar_last_request_at = 0.0
+_semantic_scholar_rate_limit_lock = threading.Lock()
+
+
+def wait_for_semantic_scholar_rate_limit() -> None:
+    global _semantic_scholar_last_request_at
+    with _semantic_scholar_rate_limit_lock:
+        now = time.monotonic()
+        elapsed = now - _semantic_scholar_last_request_at
+        if elapsed < SEMANTIC_SCHOLAR_MIN_INTERVAL_SECONDS:
+            time.sleep(SEMANTIC_SCHOLAR_MIN_INTERVAL_SECONDS - elapsed)
+        _semantic_scholar_last_request_at = time.monotonic()
+
+
+def semantic_scholar_authors(authors: Any) -> str:
+    if not isinstance(authors, list):
+        return ""
+    names: List[str] = []
+    for author in authors:
+        if not isinstance(author, dict):
+            continue
+        name = str(author.get("name") or "").strip()
+        if name:
+            names.append(name)
+    return "; ".join(names)
+
+
+def semantic_scholar_search(
+    *,
+    api_key: str,
+    topic: str,
+    max_results: int,
+    timeout_s: int = 30,
+) -> List[PaperMeta]:
+    query_text = str(topic or "").strip()
+    if not query_text:
+        return []
+    headers = {"Accept": "application/json"}
+    if api_key.strip():
+        headers["x-api-key"] = api_key.strip()
+    wait_for_semantic_scholar_rate_limit()
+    resp = requests.get(
+        "https://api.semanticscholar.org/graph/v1/paper/search",
+        headers=headers,
+        params={
+            "query": query_text,
+            "limit": str(clamp_int(max_results, 1, 100, 25)),
+            "fields": "title,authors,year,abstract,externalIds,url,openAccessPdf",
+        },
+        timeout=timeout_s,
+    )
+    resp.raise_for_status()
+    results = resp.json().get("data", [])
+
+    out: List[PaperMeta] = []
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        external_ids = item.get("externalIds") if isinstance(item.get("externalIds"), dict) else {}
+        doi = normalize_doi(str(external_ids.get("DOI") or ""))
+        open_access_pdf = item.get("openAccessPdf") if isinstance(item.get("openAccessPdf"), dict) else {}
+        out.append(
+            {
+                "title": str(item.get("title") or "").strip(),
+                "authors": semantic_scholar_authors(item.get("authors")),
+                "year": parse_year(item.get("year")),
+                "doi": doi,
+                "abstract": str(item.get("abstract") or "").strip(),
+                "pdf_url": str(open_access_pdf.get("url") or "").strip(),
+                "source_db": "Semantic Scholar",
+                "landing_url": str(item.get("url") or (f"https://doi.org/{doi}" if doi else "")).strip(),
+                "access_date": today_access_date(),
+            }
+        )
+    return out
 
 
 def openalex_search(
@@ -3544,7 +3625,8 @@ def execute_workflow(
         allow_core = bool(database_filters.get("core", True))
         allow_openalex = bool(database_filters.get("openalex", True))
         allow_arxiv = bool(database_filters.get("arxiv", True))
-        if not any([allow_scopus, allow_core, allow_openalex, allow_arxiv]):
+        allow_semantic_scholar = bool(database_filters.get("semantic_scholar", True))
+        if not any([allow_scopus, allow_core, allow_openalex, allow_arxiv, allow_semantic_scholar]):
             allow_openalex = True
         deep_review = bool(search_filters_state.get("deep_review") or search_filters_state.get("deepReview"))
         year_min = clamp_int(search_filters_state.get("publish_year_min"), 1900, 2100, 0) if search_filters_state.get("publish_year_min") else 0
@@ -3561,7 +3643,7 @@ def execute_workflow(
                 hooks.on_metadata([])
             return {"metadata_list": []}
 
-        add_log("Researcher started: searching Scopus, CORE, OpenAlex, and arXiv in parallel.")
+        add_log("Researcher started: searching Scopus, CORE, Semantic Scholar, OpenAlex, and arXiv in parallel.")
         search_pool_per_source = max(15, min(effective_reference_target * 3, 60))
         if deep_review:
             search_pool_per_source = max(search_pool_per_source, 45)
@@ -3572,6 +3654,7 @@ def execute_workflow(
         core_limit = max(CORE_MAX_RESULTS, search_pool_per_source)
         openalex_limit = max(OPENALEX_MAX_RESULTS, search_pool_per_source)
         arxiv_limit = max(ARXIV_MAX_RESULTS, search_pool_per_source)
+        semantic_scholar_limit = max(SEMANTIC_SCHOLAR_MAX_RESULTS, search_pool_per_source)
         use_cloud_resources = use_remote_resource_api()
         if use_cloud_resources:
             add_log("Researcher: cloud resource proxy enabled for literature APIs.")
@@ -3622,6 +3705,28 @@ def execute_workflow(
                 add_log("CORE: skipped by literature search filters.")
             else:
                 add_log("CORE: skipped - API key not configured.")
+
+            if allow_semantic_scholar and (SEMANTIC_SCHOLAR_API_KEY.strip() or use_cloud_resources):
+                add_log(f"Semantic Scholar: queued search (limit={semantic_scholar_limit}, rate limit <1 req/s).")
+                if use_cloud_resources:
+                    future = executor.submit(
+                        remote_resource_search,
+                        source="semantic_scholar",
+                        topic=topic_value,
+                        max_results=semantic_scholar_limit,
+                    )
+                else:
+                    future = executor.submit(
+                        semantic_scholar_search,
+                        api_key=SEMANTIC_SCHOLAR_API_KEY,
+                        topic=topic_value,
+                        max_results=semantic_scholar_limit,
+                    )
+                future_map[future] = ("Semantic Scholar", semantic_scholar_limit)
+            elif not allow_semantic_scholar:
+                add_log("Semantic Scholar: skipped by literature search filters.")
+            else:
+                add_log("Semantic Scholar: skipped - API key not configured.")
 
             if allow_openalex:
                 add_log(f"OpenAlex: queued search (limit={openalex_limit}).")

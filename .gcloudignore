@@ -5,7 +5,6 @@
 .claude
 .agents
 .continue
-.firebase
 __pycache__/
 node_modules/
 public/
@@ -16,7 +15,6 @@ public/
 npm-debug.log*
 .env
 client_secret_*.json
-firebase-debug.log
 app.py
 bin/
 dist/

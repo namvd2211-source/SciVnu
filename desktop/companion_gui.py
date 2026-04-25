@@ -23,7 +23,6 @@ from config.release_config import current_app_name, current_version, is_newer_ve
 
 RELEASE_CONFIG = load_release_config()
 APP_TITLE = current_app_name()
-HOSTED_WEB_APP_URL = "https://sci-vnucea.web.app"
 LOCAL_WEB_APP_URL = "http://127.0.0.1:8787/"
 LOCAL_LIVE_URL = "http://127.0.0.1:8787/api/live"
 LOCAL_HEALTH_URL = "http://127.0.0.1:8787/api/health"
@@ -238,7 +237,6 @@ class CompanionController:
         }
         self._append_log("Companion ready.")
         self._append_log(f"Local web app: {LOCAL_WEB_APP_URL}")
-        self._append_log(f"Hosted web app: {HOSTED_WEB_APP_URL}")
         self._append_log(
             f"{self.state['app_name']} version {self.state['app_version']} ({self.state['release_channel']})"
         )

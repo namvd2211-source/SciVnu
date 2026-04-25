@@ -9,7 +9,6 @@ __pycache__
 *.log
 .env
 client_secret_*.json
-firebase-debug.log
 public/
 app.py
 bin/

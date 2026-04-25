@@ -18,12 +18,14 @@ const MODEL_STORAGE_KEY = "researchCompanion.selectedGeminiModel";
 const DEFAULT_DATABASE_FILTERS = Object.freeze({
   scopus: true,
   core: true,
+  semantic_scholar: true,
   openalex: true,
   arxiv: true,
 });
 const DATABASE_LABELS = Object.freeze({
   scopus: "Scopus",
   core: "CORE",
+  semantic_scholar: "Semantic Scholar",
   openalex: "OpenAlex",
   arxiv: "arXiv",
 });
@@ -149,6 +151,7 @@ const elements = {
   filterDeepReview: document.getElementById("filter-deep-review"),
   filterDbScopus: document.getElementById("filter-db-scopus"),
   filterDbCore: document.getElementById("filter-db-core"),
+  filterDbSemanticScholar: document.getElementById("filter-db-semantic-scholar"),
   filterDbOpenalex: document.getElementById("filter-db-openalex"),
   filterDbArxiv: document.getElementById("filter-db-arxiv"),
   filterDbCount: document.getElementById("filter-db-count"),
@@ -597,6 +600,9 @@ function renderFilterControls() {
   if (elements.filterDbCore) {
     elements.filterDbCore.checked = Boolean(state.searchFilters.databases.core);
   }
+  if (elements.filterDbSemanticScholar) {
+    elements.filterDbSemanticScholar.checked = Boolean(state.searchFilters.databases.semantic_scholar);
+  }
   if (elements.filterDbOpenalex) {
     elements.filterDbOpenalex.checked = Boolean(state.searchFilters.databases.openalex);
   }
@@ -650,6 +656,7 @@ function syncFiltersFromInputs() {
   state.searchFilters.databases = {
     scopus: Boolean(elements.filterDbScopus && elements.filterDbScopus.checked),
     core: Boolean(elements.filterDbCore && elements.filterDbCore.checked),
+    semantic_scholar: Boolean(elements.filterDbSemanticScholar && elements.filterDbSemanticScholar.checked),
     openalex: Boolean(elements.filterDbOpenalex && elements.filterDbOpenalex.checked),
     arxiv: Boolean(elements.filterDbArxiv && elements.filterDbArxiv.checked),
   };
@@ -696,6 +703,7 @@ function serializedSearchFilters() {
     databases: {
       scopus: Boolean(state.searchFilters.databases.scopus),
       core: Boolean(state.searchFilters.databases.core),
+      semantic_scholar: Boolean(state.searchFilters.databases.semantic_scholar),
       openalex: Boolean(state.searchFilters.databases.openalex),
       arxiv: Boolean(state.searchFilters.databases.arxiv),
     },
@@ -1134,7 +1142,7 @@ async function fetchJson(url, options = {}) {
   const contentType = response.headers.get("content-type") || "";
   const body = await response.text();
   if (contentType.includes("text/html") || body.trim().startsWith("<!DOCTYPE") || body.trim().startsWith("<html")) {
-    throw new Error("Backend API is not connected. Firebase Hosting is returning HTML instead of JSON for /api.");
+    throw new Error("Backend API is not connected. The API returned HTML instead of JSON for /api.");
   }
   if (!response.ok) {
     let detail = body;
@@ -1912,7 +1920,7 @@ function initFilters() {
   });
   elements.filtersReset.addEventListener("click", () => resetSearchFilters());
 
-  [elements.filterDeepReview, elements.filterDbScopus, elements.filterDbCore, elements.filterDbOpenalex, elements.filterDbArxiv].forEach((element) => {
+  [elements.filterDeepReview, elements.filterDbScopus, elements.filterDbCore, elements.filterDbSemanticScholar, elements.filterDbOpenalex, elements.filterDbArxiv].forEach((element) => {
     element.addEventListener("change", () => syncFiltersFromInputs());
   });
 

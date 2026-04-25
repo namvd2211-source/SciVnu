@@ -1,14 +1,9 @@
 ﻿{
     "name":  "sci-vnucea-research-assistant",
     "private":  true,
-    "version":  "1.0.6",
-    "description":  "Firebase-ready frontend and deployment tooling for the AI-Agentic Research Assistant.",
+    "version":  "1.0.7",
+    "description":  "Local-first academic research and writing assistant.",
     "scripts":  {
-                    "firebase:login":  "firebase login",
-                    "firebase:use":  "firebase use sci-vnucea",
-                    "firebase:serve":  "firebase emulators:start --only hosting",
-                    "firebase:deploy":  "firebase deploy --only hosting",
-                    "firebase:deploy:all":  "firebase deploy",
                     "companion:build":  "powershell -ExecutionPolicy Bypass -File .\\scripts\\build_companion_exe.ps1 -BuildMode onedir",
                     "companion:installer":  "powershell -ExecutionPolicy Bypass -File .\\scripts\\build_companion_nsis_setup.ps1",
                     "release:prepare":  "powershell -ExecutionPolicy Bypass -File .\\scripts\\prepare_github_release.ps1"

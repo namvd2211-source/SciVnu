@@ -11,7 +11,7 @@ from typing import Dict, Optional
 
 
 DEFAULT_PUBLIC_BACKEND_URL = "http://127.0.0.1:8787"
-DEFAULT_FRONTEND_ORIGIN = "https://sci-vnucea.web.app"
+DEFAULT_FRONTEND_ORIGIN = "http://127.0.0.1:8787"
 DEFAULT_REMOTE_RESOURCE_API_BASE_URL = "https://research-backend-213473562655.asia-southeast1.run.app"
 DEFAULT_LOCATION = "global"
 DEFAULT_GEMINI_CLI_PROJECT_ID = "GOOGLE_ONE"
@@ -425,6 +425,7 @@ def configure_local_companion_env(root: Path | None = None) -> Dict[str, str]:
     os.environ.setdefault("GOOGLE_CLOUD_LOCATION", DEFAULT_LOCATION)
     os.environ.pop("SCOPUS_API_KEY", None)
     os.environ.pop("CORE_API_KEY", None)
+    os.environ.pop("SEMANTIC_SCHOLAR_API_KEY", None)
     os.environ.pop("UNPAYWALL_EMAIL", None)
     os.environ.pop("GEMINI_API_KEY", None)
 

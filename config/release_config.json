@@ -1,6 +1,6 @@
 ﻿{
     "app_name":  "Research Companion",
-    "version":  "1.0.6",
+    "version":  "1.0.7",
     "release_channel":  "stable",
     "release_tag_prefix":  "v",
     "github_repo":  "namvd2211-source/SciVnu",

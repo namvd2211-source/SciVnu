@@ -1428,6 +1428,29 @@ button,
   justify-content: flex-end;
 }
 
+.filter-apply-button {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 209, 102, 0.52);
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffd166 0%, #f4a63a 100%);
+  color: #16110a;
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.filter-apply-button:hover {
+  filter: brightness(1.05);
+}
+
+.filter-apply-button:active {
+  transform: translateY(1px);
+}
+
 .drawer-backdrop {
   position: fixed;
   inset: 0;
