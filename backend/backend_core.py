@@ -1874,6 +1874,7 @@ def decode_proxy_bytes(value: Any) -> str:
 
 def cliproxy_stream_text(*, model: str, prompt: str, should_stop: Optional[Callable[[], None]] = None) -> Iterator[str]:
     auth_refresh_attempted = False
+    auth_rotate_attempts = 0
     rotate_attempts = 0
     max_rotate_attempts = max(0, len(cliproxy_auth_entries()) - 1)
     while True:
@@ -1887,7 +1888,7 @@ def cliproxy_stream_text(*, model: str, prompt: str, should_stop: Optional[Calla
                 "messages": [{"role": "user", "content": prompt}],
                 "stream": True,
             },
-            timeout=300,
+            timeout=(10, 90),
             stream=True,
         )
         if response.status_code >= 400:
@@ -1898,6 +1899,13 @@ def cliproxy_stream_text(*, model: str, prompt: str, should_stop: Optional[Calla
                 continue
             hint = cliproxy_error_hint()
             if response.status_code == 401 or is_cliproxy_auth_error(detail):
+                if is_cliproxy_auth_error(detail) and auth_rotate_attempts < max_rotate_attempts:
+                    rotated_name = rotate_cliproxy_auth_account()
+                    if rotated_name:
+                        auth_rotate_attempts += 1
+                        auth_refresh_attempted = False
+                        time.sleep(0.5)
+                        continue
                 message = "CLI proxy Gemini OAuth is invalid or expired. Sign in again in ResearchCompanion.exe."
                 if detail:
                     message = f"{message} Response: {detail}"
@@ -3307,6 +3315,10 @@ def execute_workflow(
     def cfg_for(role: str) -> LLMConfig:
         return llm_config_for_role(llm_cfg, role)
 
+    def model_chain_for(role: str) -> str:
+        cfg = cfg_for(role)
+        return " -> ".join([cfg.model] + list(cfg.fallback_models[:3]))
+
     def resolved_target_word_count(state: State) -> int:
         guidance = state.get("manager_guidance", {}) or {}
         return clamp_int(guidance.get("target_word_count"), 1000, 20000, target_word_count)
@@ -3856,7 +3868,7 @@ def execute_workflow(
         guidance = state.get("manager_guidance", {}) or {}
         add_log(
             f"Writer started: {'revising uploaded manuscript' if revision_mode else 'drafting IMRaD sections'} with {len(state.get('quotations', []))} quotations, "
-            f"body target about {body_target_words} words within total target {effective_target_words}."
+            f"body target about {body_target_words} words within total target {effective_target_words}. Model chain: {model_chain_for('Writer')}."
         )
 
         section_order = ["Introduction", "Methods", "Results", "Discussion"]
@@ -3912,14 +3924,21 @@ def execute_workflow(
                     manager_brief=str(guidance.get("writer_brief", "") or ""),
                 )
                 section_buf: List[str] = []
+                first_delta_at = 0.0
                 for delta in llm_stream_text(cfg=cfg_for("Writer"), prompt=section_prompt, should_stop=check_stop):
                     check_stop()
+                    if not first_delta_at:
+                        first_delta_at = time.time()
+                        add_log(f"Writer: {section_name} started streaming text.")
                     section_buf.append(delta)
                     preview = cumulative + "".join(section_buf)
                     if hooks and hooks.on_draft:
                         hooks.on_draft(preview)
 
                 section_text = "".join(section_buf).strip()
+                if not section_text:
+                    raise RuntimeError(f"Writer produced no text for {section_name}. Try another Gemini account or a lower-latency model.")
+                add_log(f"Writer: {section_name} done ({count_words(section_text)} words).")
                 sections.append(section_text)
                 cumulative = "\n\n".join([part for part in sections if part]).strip()
 

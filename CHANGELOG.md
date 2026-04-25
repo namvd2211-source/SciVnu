@@ -6,6 +6,16 @@ The format is based on Keep a Changelog, and versions are intended to map to Git
 
 ## [Unreleased]
 
+## [1.0.6] - 2026-04-25
+### Changed
+- Writer node now logs the Gemini model fallback chain and section-level streaming progress.
+- CLI proxy streaming now times out faster when no text is received instead of leaving Writer spinning for several minutes.
+
+### Fixed
+- Workflow LLM auth failures now try another installed Gemini account before failing.
+- Workflow job errors now show a clear Gemini sign-in recovery message when local CLI OAuth is invalid.
+- Writer now fails explicitly if a section returns no text, making stalled generation easier to diagnose.
+
 ## [1.0.5] - 2026-04-25
 ### Added
 - Release preparation now generates versioned Windows installer, portable zip, `latest.json`, and structured GitHub release notes.

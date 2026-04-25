@@ -3128,6 +3128,8 @@ def _run_job(job_id: str, payload: WorkflowRequest) -> None:
             if statuses.get(node) == "Processing":
                 statuses[node] = "Error"
         message = f"{exc}"
+        if is_cliproxy_auth_error(exc):
+            message = "Gemini CLI OAuth is invalid or expired. Open ResearchCompanion.exe, choose a Gemini account, click Use if needed, then Connect Gemini again."
         trace = traceback.format_exc(limit=8)
         _update_job(
             job_id,

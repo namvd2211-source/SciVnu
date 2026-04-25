@@ -1,7 +1,7 @@
 ﻿{
     "name":  "sci-vnucea-research-assistant",
     "private":  true,
-    "version":  "1.0.5",
+    "version":  "1.0.6",
     "description":  "Firebase-ready frontend and deployment tooling for the AI-Agentic Research Assistant.",
     "scripts":  {
                     "firebase:login":  "firebase login",
