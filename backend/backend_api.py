@@ -282,19 +282,23 @@ GEMINI_CLI_BUCKET_GROUPS = [
         "id": "gemini-flash-lite-series",
         "label": "Gemini Flash Lite Series",
         "preferred_model_id": "gemini-2.5-flash-lite",
-        "model_ids": ["gemini-2.5-flash-lite"],
+        "model_ids": ["gemini-2.5-flash-lite", "gemini-flash-lite-latest"],
+        "match_terms": ["flash-lite", "flash_lite"],
     },
     {
         "id": "gemini-flash-series",
         "label": "Gemini Flash Series",
         "preferred_model_id": "gemini-3-flash-preview",
-        "model_ids": ["gemini-3-flash-preview", "gemini-2.5-flash"],
+        "model_ids": ["gemini-3-flash-preview", "gemini-2.5-flash", "gemini-flash-latest"],
+        "match_terms": ["flash"],
+        "exclude_terms": ["flash-lite", "flash_lite"],
     },
     {
         "id": "gemini-pro-series",
         "label": "Gemini Pro Series",
         "preferred_model_id": "gemini-3.1-pro-preview",
-        "model_ids": ["gemini-3.1-pro-preview", "gemini-3-pro-preview", "gemini-2.5-pro"],
+        "model_ids": ["gemini-3.1-pro-preview", "gemini-3-pro-preview", "gemini-2.5-pro", "gemini-pro-latest"],
+        "match_terms": ["pro"],
     },
 ]
 GEMINI_CLI_TIER_LABELS = {
@@ -599,7 +603,7 @@ def _value_as_number(value: Any) -> Optional[float]:
 def _value_as_fraction(value: Any) -> Optional[float]:
     number = _value_as_number(value)
     if number is not None:
-        return number
+        return number / 100.0 if number > 1 else number
     text = _value_as_text(value)
     if text.endswith("%"):
         try:
@@ -804,29 +808,42 @@ def _local_cli_proxy_json_request(entry: Dict[str, Any], url: str, payload: Dict
         return _cloudcode_json_request(url, refreshed_access_token, payload)
 
 
+def _gemini_cli_bucket_matches_group(model_id: str, group: Dict[str, Any]) -> bool:
+    if model_id in group.get("model_ids", []):
+        return True
+    lowered = model_id.lower()
+    if any(term in lowered for term in group.get("exclude_terms", [])):
+        return False
+    return any(term in lowered for term in group.get("match_terms", []))
+
+
 def _gemini_cli_bucket_groups(raw_buckets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     grouped: List[Dict[str, Any]] = []
-    raw_by_model: Dict[str, Dict[str, Any]] = {}
+    normalized_buckets: List[Dict[str, Any]] = []
     for bucket in raw_buckets:
         model_id = _normalize_model_id(bucket.get("modelId") or bucket.get("model_id"))
         if not model_id:
             continue
-        raw_by_model[model_id] = {
-            "model_id": model_id,
-            "token_type": _value_as_text(bucket.get("tokenType") or bucket.get("token_type")),
-            "remaining_fraction": _value_as_fraction(bucket.get("remainingFraction") or bucket.get("remaining_fraction")),
-            "remaining_amount": _value_as_number(bucket.get("remainingAmount") or bucket.get("remaining_amount")),
-            "reset_time": _value_as_text(bucket.get("resetTime") or bucket.get("reset_time")) or "",
-        }
+        normalized_buckets.append(
+            {
+                "model_id": model_id,
+                "token_type": _value_as_text(bucket.get("tokenType") or bucket.get("token_type")),
+                "remaining_fraction": _value_as_fraction(bucket.get("remainingFraction") or bucket.get("remaining_fraction")),
+                "remaining_amount": _value_as_number(bucket.get("remainingAmount") or bucket.get("remaining_amount")),
+                "reset_time": _value_as_text(bucket.get("resetTime") or bucket.get("reset_time")) or "",
+            }
+        )
 
+    used_model_ids: set[str] = set()
     for group in GEMINI_CLI_BUCKET_GROUPS:
-        buckets = [raw_by_model[model_id] for model_id in group["model_ids"] if model_id in raw_by_model]
+        buckets = [item for item in normalized_buckets if item["model_id"] not in used_model_ids and _gemini_cli_bucket_matches_group(item["model_id"], group)]
         if not buckets:
             continue
         preferred = next((item for item in buckets if item["model_id"] == group["preferred_model_id"]), buckets[0])
         fraction_values = [item["remaining_fraction"] for item in buckets if item["remaining_fraction"] is not None]
         amount_values = [item["remaining_amount"] for item in buckets if item["remaining_amount"] is not None]
         reset_values = [item["reset_time"] for item in buckets if item["reset_time"]]
+        used_model_ids.update(item["model_id"] for item in buckets)
         grouped.append(
             {
                 "id": group["id"],

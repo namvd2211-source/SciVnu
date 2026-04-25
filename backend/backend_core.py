@@ -1849,16 +1849,16 @@ NODE_MODEL_SERIES: Dict[str, str] = {
 
 SERIES_MODEL_CHAINS: Dict[str, List[List[str]]] = {
     "pro": [
-        ["gemini-2.5-pro"],
-        ["gemini-2.5-flash"],
-        ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite"],
+        ["gemini-3.1-pro-preview", "gemini-3-pro-preview", "gemini-2.5-pro", "gemini-pro-latest"],
+        ["gemini-3-flash-preview", "gemini-2.5-flash", "gemini-flash-latest"],
+        ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-flash-lite-latest"],
     ],
     "flash": [
-        ["gemini-2.5-flash"],
-        ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite"],
+        ["gemini-3-flash-preview", "gemini-2.5-flash", "gemini-flash-latest"],
+        ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-flash-lite-latest"],
     ],
     "flash-lite": [
-        ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite"],
+        ["gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-flash-lite-latest"],
     ],
 }
 
@@ -1918,6 +1918,25 @@ def is_quota_exhausted_error(value: Any) -> bool:
     return any(token in message for token in ["429", "resource_exhausted", "quota", "rate limit"])
 
 
+def is_model_access_error(value: Any) -> bool:
+    message = str(value or "").lower()
+    return any(
+        token in message
+        for token in [
+            "model",
+            "not found",
+            "not available",
+            "unsupported",
+            "permission denied",
+            "permission_denied",
+            "forbidden",
+            "quota",
+            "rate limit",
+            "resource_exhausted",
+        ]
+    )
+
+
 def rotate_cliproxy_auth_account() -> Optional[str]:
     entries = cliproxy_auth_entries()
     if len(entries) < 2:
@@ -1974,11 +1993,25 @@ def cliproxy_stream_text(*, model: str, prompt: str, should_stop: Optional[Calla
         )
         if response.status_code >= 400:
             detail = decode_proxy_bytes(response.content).strip()
-            if response.status_code == 401 and not auth_refresh_attempted and refresh_cliproxy_auth_tokens():
+            error_text = f"{response.status_code} {detail}"
+            if response.status_code == 401 and not is_quota_exhausted_error(error_text) and not is_model_access_error(error_text) and not auth_refresh_attempted and refresh_cliproxy_auth_tokens():
                 auth_refresh_attempted = True
                 time.sleep(0.5)
                 continue
             hint = cliproxy_error_hint()
+            message = f"CLI proxy request failed with HTTP {response.status_code}."
+            if detail:
+                message = f"{message} Response: {detail}"
+            if hint:
+                message = f"{message} Hint: {hint}"
+            if is_quota_exhausted_error(error_text) or is_model_access_error(error_text):
+                if rotate_attempts < max_rotate_attempts:
+                    rotated_name = rotate_cliproxy_auth_account()
+                    if rotated_name:
+                        rotate_attempts += 1
+                        time.sleep(0.5)
+                        continue
+                raise RuntimeError(message)
             if response.status_code == 401 or is_cliproxy_auth_error(detail):
                 if is_cliproxy_auth_error(detail) and auth_rotate_attempts < max_rotate_attempts:
                     rotated_name = rotate_cliproxy_auth_account()
@@ -1987,23 +2020,12 @@ def cliproxy_stream_text(*, model: str, prompt: str, should_stop: Optional[Calla
                         auth_refresh_attempted = False
                         time.sleep(0.5)
                         continue
-                message = "CLI proxy Gemini OAuth is invalid or expired. Sign in again in ResearchCompanion.exe."
+                auth_message = "CLI proxy Gemini OAuth is invalid or expired. Sign in again in ResearchCompanion.exe."
                 if detail:
-                    message = f"{message} Response: {detail}"
+                    auth_message = f"{auth_message} Response: {detail}"
                 if hint:
-                    message = f"{message} Hint: {hint}"
-                raise RuntimeError(message)
-            message = f"CLI proxy request failed with HTTP {response.status_code}."
-            if detail:
-                message = f"{message} Response: {detail}"
-            if hint:
-                message = f"{message} Hint: {hint}"
-            if is_quota_exhausted_error(f"{response.status_code} {detail}") and rotate_attempts < max_rotate_attempts:
-                rotated_name = rotate_cliproxy_auth_account()
-                if rotated_name:
-                    rotate_attempts += 1
-                    time.sleep(0.5)
-                    continue
+                    auth_message = f"{auth_message} Hint: {hint}"
+                raise RuntimeError(auth_message)
             raise RuntimeError(message)
 
         for raw_line in response.iter_lines(decode_unicode=False):
@@ -2077,7 +2099,7 @@ def llm_stream_text(*, cfg: LLMConfig, prompt: str, should_stop: Optional[Callab
                 return
             except Exception as e:  # noqa: BLE001
                 last_error = e
-                if is_cliproxy_auth_error(e):
+                if is_cliproxy_auth_error(e) and not is_quota_exhausted_error(e) and not is_model_access_error(e):
                     raise RuntimeError(
                         f"LLM authentication failed for local companion Gemini OAuth. Last error: {e}"
                     ) from e

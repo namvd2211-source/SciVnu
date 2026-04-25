@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import atexit
+import contextlib
 import importlib.util
 import json
 import os
@@ -152,6 +153,82 @@ def _confirm_exit_dialog() -> bool:
         )
     finally:
         root.destroy()
+
+
+def _load_tray_icon_image() -> Any:
+    from PIL import Image
+
+    icon_path = REPO_ROOT / "packaging" / "installer_assets" / "icon-preview.png"
+    if not icon_path.exists():
+        icon_path = REPO_ROOT / "packaging" / "installer_assets" / "icon.ico"
+    return Image.open(icon_path)
+
+
+class CompanionTray:
+    def __init__(self, window: Any, controller: "CompanionController") -> None:
+        self.window = window
+        self.controller = controller
+        self.icon: Any = None
+        self.ready = False
+        self.quit_requested = False
+
+    def start(self) -> None:
+        try:
+            import pystray
+        except Exception as exc:
+            self.controller.log(f"System tray unavailable: {exc}")
+            return
+        try:
+            self.icon = pystray.Icon(
+                "ResearchCompanion",
+                _load_tray_icon_image(),
+                APP_TITLE,
+                menu=pystray.Menu(
+                    pystray.MenuItem("Open Research Companion", self.show_window, default=True),
+                    pystray.MenuItem("Open Local Web UI", self.open_web_app),
+                    pystray.MenuItem("Quit", self.quit_app),
+                ),
+            )
+            threading.Thread(target=self.icon.run, name="research-companion-tray", daemon=True).start()
+            self.ready = True
+            self.controller.log("System tray is ready. Closing the window will keep Research Companion running.")
+        except Exception as exc:
+            self.controller.log(f"System tray failed to start: {exc}")
+
+    def show_window(self, _icon: Any = None, _item: Any = None) -> None:
+        with contextlib.suppress(Exception):
+            self.window.show()
+        with contextlib.suppress(Exception):
+            self.window.restore()
+        with contextlib.suppress(Exception):
+            self.window.bring_to_front()
+
+    def hide_window(self) -> bool:
+        if not self.ready:
+            return False
+        with contextlib.suppress(Exception):
+            self.window.hide()
+            self.controller.log("Research Companion minimized to system tray.")
+            return True
+        return False
+
+    def open_web_app(self, _icon: Any = None, _item: Any = None) -> None:
+        self.controller.open_web_app()
+
+    def quit_app(self, _icon: Any = None, _item: Any = None) -> None:
+        self.quit_requested = True
+        self.controller.shutdown()
+        with contextlib.suppress(Exception):
+            if self.icon:
+                self.icon.stop()
+        with contextlib.suppress(Exception):
+            self.window.destroy()
+        os._exit(0)
+
+    def stop(self) -> None:
+        with contextlib.suppress(Exception):
+            if self.icon:
+                self.icon.stop()
 
 
 def _load_runtime_backend_module(settings: Dict[str, Any]):
@@ -1165,6 +1242,9 @@ class CompanionController:
             snapshot["events"] = list(self.state.get("events") or [])
             return snapshot
 
+    def log(self, message: str) -> None:
+        self._append_log(message)
+
     def _append_log(self, message: str) -> None:
         text = str(message or "").rstrip()
         if not text:
@@ -1763,20 +1843,32 @@ def run_gui_mode() -> None:
         text_select=True,
     )
 
+    tray = CompanionTray(window, controller)
+
     def close_window_for_update() -> None:
+        tray.stop()
         os._exit(0)
 
     controller.close_callback = close_window_for_update
 
     def on_closing() -> bool:
-        if not controller.closing_for_update and controller.is_backend_running():
-            if not _confirm_exit_dialog():
-                return False
+        if tray.quit_requested or controller.closing_for_update:
+            tray.stop()
+            controller.shutdown()
+            return True
+        if tray.hide_window():
+            return False
+        if controller.is_backend_running() and not _confirm_exit_dialog():
+            return False
         controller.shutdown()
         return True
 
+    def start_companion() -> None:
+        tray.start()
+        controller.start_monitor()
+
     window.events.closing += on_closing
-    webview.start(func=controller.start_monitor, debug=False)
+    webview.start(func=start_companion, debug=False)
 
 
 if __name__ == "__main__":

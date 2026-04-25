@@ -6,6 +6,18 @@ The format is based on Keep a Changelog, and versions are intended to map to Git
 
 ## [Unreleased]
 
+## [1.0.8] - 2026-04-25
+### Added
+- Desktop companion can minimize to the Windows system tray and keep the local runtime available after closing the window.
+- Added a modern themed app icon for the packaged desktop executable and installer.
+
+### Changed
+- Tray packaging now includes the required pystray dependency while keeping Pillow compatible with the desktop UI stack.
+
+### Fixed
+- Gemini Pro quota grouping now recognizes newer Pro bucket/model labels instead of showing `N/A` for supported accounts.
+- Pro-only workflow nodes can fall back to Flash/Flash Lite models when a free Gemini account has no Pro access.
+
 ## [1.0.7] - 2026-04-25
 ### Added
 - Literature search can query Semantic Scholar through the cloud resource backend and expose it in the database filter UI.
